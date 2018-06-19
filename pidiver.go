@@ -469,7 +469,7 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 	}
 
 	// convert trits to trytes
-	nonceTrits := make([]int8, NONCE_TRINARY_SIZE*3)
+	nonceTrits := make([]int8, NONCE_TRINARY_SIZE)
 	for i := 0; i < NONCE_TRINARY_SIZE; i++ {
 		nonceTrits[i] = f.bitsToTrits(bitsHi[i], bitsLo[i])
 	}
@@ -498,7 +498,7 @@ func main() {
 			log.Fatalf("Error: %g", err)
 		}
 
-		log.Printf("Nonce-Trytes: %s\n", ret[0:27])
+		log.Printf("Nonce-Trytes: %s\n", ret)
 		// verify result
 		/*		trytes := giota.Trytes(string(randomTrytes) + transaction[256:len(transaction)-27] + ret[0:27])
 				log.Printf("hash: %s\n\n", trytes.Hash())
