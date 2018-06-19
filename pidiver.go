@@ -342,7 +342,7 @@ func (f *PiDiver) sendTritData(trytes string) error {
 			log.Printf("Transfer Error (%d/10).\n", tries)
 			tries++
 			if tries == 11 {
-				return errors.New("Giving up ...")
+				return errors.New("CRC32 error - giving up ...")
 			}
 			continue
 		} else {
@@ -363,12 +363,10 @@ func (f *PiDiver) curlSendBlock(trytes string, doCurl bool) error {
 		cmd |= FLAG_CURL_DO_CURL
 	}
 	f.send(cmd)
-
-	for {
-		if (f.getFlags() & FLAG_CURL_FINISHED) != 0 {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
+	
+	// instantly read back ... curl needs <1µs on fpga and spi is slower
+	if f.getFlags() & FLAG_CURL_FINISHED == 0 {
+		return errors.New("Curl didn't finish")
 	}
 	return nil
 }
@@ -376,13 +374,6 @@ func (f *PiDiver) curlSendBlock(trytes string, doCurl bool) error {
 // setup fpga for midstate calculation
 func (f *PiDiver) curlInitBlock() {
 	f.send(CMD_WRITE_FLAGS | FLAG_CURL_RESET)
-
-	for {
-		if (f.getFlags() & FLAG_CURL_FINISHED) != 0 {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
 }
 
 // do PoW
@@ -395,8 +386,8 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 		if blocknr == 32 {
 			doCurl = false
 		}
-		if f.curlSendBlock(trytes[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl) != nil {
-			return "", errors.New("CRC32 Error")
+		if err := f.curlSendBlock(trytes[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
+			return "", err
 		}
 	}
 	elapsed := time.Since(start)
