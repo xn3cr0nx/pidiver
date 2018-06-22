@@ -7,7 +7,7 @@ import (
 	giota "github.com/iotaledger/giota"
 	"github.com/janne/bcm2835"
 	"log"
-	"math/rand"
+	//"math/rand"
 	"time"
 	"unsafe"
 )
