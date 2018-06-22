@@ -134,7 +134,7 @@ type PiDiver struct {
 }
 
 // init everything
-func (f *PiDiver) init() {
+func (f *PiDiver) Init() {
 	bcm2835.Init()
 	/* init spi interface */
 	bcm2835.SpiBegin()
