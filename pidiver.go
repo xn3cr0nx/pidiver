@@ -377,7 +377,7 @@ func curlInitBlock() {
 }
 
 // do PoW
-func PowPiDiver(trytes giota.Trytes, minWeight int) (Trytes, error) {
+func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	// do mid-state-calculation on FPGA
 	start := time.Now()
 	curlInitBlock()
