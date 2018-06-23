@@ -131,9 +131,10 @@ var log2 int
 var tryteMap map[string]uint32
 
 func InitPiDiver() error {
-	if !bcm2835.Init() {
+	err := bcm2835.Init() // Initialize the library
+  	if err != nil {
 		return errors.New("Couldn't initialize BCM2835 Lib")
-	}
+	}	
 	
 	/* init spi interface */
 	bcm2835.SpiBegin()
