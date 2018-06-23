@@ -369,7 +369,7 @@ func curlSendBlock(trytes string, doCurl bool) error {
 }
 
 // setup fpga for midstate calculation
-func (f *PiDiver) curlInitBlock() {
+func curlInitBlock() {
 	send(CMD_WRITE_FLAGS | FLAG_CURL_RESET)
 }
 
