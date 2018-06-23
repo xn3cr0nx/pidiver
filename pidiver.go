@@ -129,6 +129,7 @@ var crctab = []uint32{
 var parallel uint32
 var log2 int
 var tryteMap map[string]uint32
+var initialized bool = false
 
 func InitPiDiver() error {
 	err := bcm2835.Init() // Initialize the library
@@ -378,6 +379,14 @@ func curlInitBlock() {
 
 // do PoW
 func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+	if !initialized {
+		err := InitPiDiver()
+		if err != nil {
+			return "", err
+		} else {
+			initialized = true
+		}
+	}
 	// do mid-state-calculation on FPGA
 	start := time.Now()
 	curlInitBlock()
