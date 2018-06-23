@@ -386,7 +386,7 @@ func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 		if blocknr == 32 {
 			doCurl = false
 		}
-		if err := curlSendBlock(trytes[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
+		if err := curlSendBlock(string(trytes)[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
 			return "", err
 		}
 	}
