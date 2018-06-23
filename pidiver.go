@@ -130,10 +130,11 @@ var parallel uint32
 var log2 int
 var tryteMap map[string]uint32
 
-func Init() {
-	powFuncs["PiDiver"] = PowPiDiver
+func InitPiDiver() error {
+	if !bcm2835.Init() {
+		return errors.New("Couldn't initialize BCM2835 Lib")
+	}
 	
-	bcm2835.Init()
 	/* init spi interface */
 	bcm2835.SpiBegin()
 	bcm2835.SpiSetBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST) /* default */
@@ -183,6 +184,7 @@ func Init() {
 		}
 	}
 	log.Printf("Table calculated\n")
+	return nil
 }
 
 // send command
@@ -374,7 +376,7 @@ func curlInitBlock() {
 }
 
 // do PoW
-func PowPiDiver(trytes Trytes, minWeight int) (Trytes, error) {
+func PowPiDiver(trytes giota.Trytes, minWeight int) (Trytes, error) {
 	// do mid-state-calculation on FPGA
 	start := time.Now()
 	curlInitBlock()
