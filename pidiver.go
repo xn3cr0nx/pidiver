@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	giota "github.com/iotaledger/giota"
-	"github.com/janne/bcm2835"
+	"github.com/shufps/bcm2835"
 	"log"
 	//"math/rand"
 	"time"
