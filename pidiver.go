@@ -126,15 +126,13 @@ var crctab = []uint32{
 	0x933EB0BB, 0x97FFAD0C, 0xAFB010B1, 0xAB710D06, 0xA6322BDF,
 	0xA2F33668, 0xBCB4666D, 0xB8757BDA, 0xB5365D03, 0xB1F740B4}
 
-type PiDiver struct {
-	device   string
-	parallel uint32
-	log2     int
-	tryteMap map[string]uint32
-}
+var parallel uint32
+var log2 int
+var tryteMap map[string]uint32
 
-// init everything
-func (f *PiDiver) Init() {
+func Init() {
+	powFuncs["PiDiver"] = PowPiDiver
+	
 	bcm2835.Init()
 	/* init spi interface */
 	bcm2835.SpiBegin()
@@ -152,20 +150,20 @@ func (f *PiDiver) Init() {
 	bcm2835.GpioSet(SPI_CS)
 	time.Sleep(10 * time.Millisecond)
 
-	f.parallel = f.readParallelLevel()
-	log.Printf("Parallel Level Detected: %d\n", f.parallel)
+	parallel = readParallelLevel()
+	log.Printf("Parallel Level Detected: %d\n", parallel)
 
 	// log2(parallel)
 	log2 := 0
 	for i := 0; i < 32; i++ {
-		if (f.parallel & (1 << uint32(i))) != 0 {
+		if (parallel & (1 << uint32(i))) != 0 {
 			log2 = i
 		}
 	}
-	f.log2 = log2
+	log2 = log2
 
 	// table calculates all bits for AAA -> ZZZ including byte-swap
-	f.tryteMap = make(map[string]uint32)
+	tryteMap = make(map[string]uint32)
 	for i := 0; i < 27; i++ {
 		for j := 0; j < 27; j++ {
 			for k := 0; k < 27; k++ {
@@ -175,21 +173,20 @@ func (f *PiDiver) Init() {
 				tritslo := uint32(0)
 				tritshi := uint32(0)
 				for j := 0; j < 9; j++ {
-					tmpHi, tmpLo := f.tritToBits(xtrits[j])
+					tmpHi, tmpLo := tritToBits(xtrits[j])
 					tritslo |= tmpLo << uint32(j)
 					tritshi |= tmpHi << uint32(j)
 				}
-				uint32Data = f.swapBytes((tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA)
-				f.tryteMap[key] = uint32Data
+				uint32Data = swapBytes((tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA)
+				tryteMap[key] = uint32Data
 			}
 		}
 	}
 	log.Printf("Table calculated\n")
-
 }
 
 // send command
-func (f *PiDiver) send(data uint32) {
+func send(data uint32) {
 	var bytedata []byte = make([]byte, 4)
 	binary.BigEndian.PutUint32(bytedata, data)
 	bcm2835.GpioClr(SPI_CS)
@@ -198,7 +195,7 @@ func (f *PiDiver) send(data uint32) {
 }
 
 // send block of data for midstate
-func (f *PiDiver) sendBlock(data []uint32) {
+func sendBlock(data []uint32) {
 	for i := 0; i < len(data); i++ {
 		bytedata := *(*[4]byte)(unsafe.Pointer(&data[i]))
 		bcm2835.GpioClr(SPI_CS)
@@ -208,7 +205,7 @@ func (f *PiDiver) sendBlock(data []uint32) {
 }
 
 // send and receive
-func (f *PiDiver) sendReceive(cmd uint32) uint32 {
+func sendReceive(cmd uint32) uint32 {
 	bytedata := make([]byte, 4)
 	bytedata_read := make([]byte, 4)
 	binary.BigEndian.PutUint32(bytedata, cmd)
@@ -223,59 +220,59 @@ func (f *PiDiver) sendReceive(cmd uint32) uint32 {
 }
 
 // start PoW
-func (f *PiDiver) startPow() {
-	f.send(CMD_WRITE_FLAGS | FLAG_START)
+func startPow() {
+	send(CMD_WRITE_FLAGS | FLAG_START)
 }
 
 // reset write pointer on FPGA
-func (f *PiDiver) resetWritePointer() {
-	f.send(CMD_RESET_WRPTR)
+func resetWritePointer() {
+	send(CMD_RESET_WRPTR)
 }
 
 // not used ... faster version with tables is used
-func (f *PiDiver) writeData(tritshi uint32, tritslo uint32) {
+func writeData(tritshi uint32, tritslo uint32) {
 	cmd := CMD_WRITE_DATA
 
 	cmd |= tritslo & 0x000001ff
 	cmd |= (tritshi & 0x000001ff) << 9
 
-	f.send(cmd)
+	send(cmd)
 }
 
 // read parallel level of FPGA
-func (f *PiDiver) readParallelLevel() uint32 {
-	return (f.sendReceive(CMD_READ_FLAGS) & 0x000000f0) >> 4
+func readParallelLevel() uint32 {
+	return (sendReceive(CMD_READ_FLAGS) & 0x000000f0) >> 4
 }
 
 // read binary nonce
-func (f *PiDiver) readBinaryNonce() uint32 {
-	return f.sendReceive(CMD_READ_NONCE)
+func readBinaryNonce() uint32 {
+	return sendReceive(CMD_READ_NONCE)
 }
 
 // red CRC32
-func (f *PiDiver) readCRC32() uint32 {
-	return f.sendReceive(CMD_READ_CRC32)
+func readCRC32() uint32 {
+	return sendReceive(CMD_READ_CRC32)
 }
 
-func (f *PiDiver) writeMinWeightMagnitude(bits uint32) {
+func writeMinWeightMagnitude(bits uint32) {
 	if bits > 26 {
 		bits = 26
 	}
-	f.send(CMD_WRITE_MIN_WEIGHT_MAGNITUDE | ((1 << bits) - 1))
+	send(CMD_WRITE_MIN_WEIGHT_MAGNITUDE | ((1 << bits) - 1))
 }
 
 // get Mask
-func (f *PiDiver) getMask() uint32 {
-	return ((f.sendReceive(CMD_READ_FLAGS) >> 8) & ((1 << f.parallel) - 1))
+func getMask() uint32 {
+	return ((sendReceive(CMD_READ_FLAGS) >> 8) & ((1 << parallel) - 1))
 }
 
 // get Flags
-func (f *PiDiver) getFlags() uint32 {
-	return f.sendReceive(CMD_READ_FLAGS) & 0x0000000f
+func getFlags() uint32 {
+	return sendReceive(CMD_READ_FLAGS) & 0x0000000f
 }
 
 // convert bits to trit
-func (f *PiDiver) bitsToTrits(h uint8, l uint8) int8 {
+func bitsToTrits(h uint8, l uint8) int8 {
 	if h != 0 && l != 0 {
 		return 0
 	}
@@ -289,7 +286,7 @@ func (f *PiDiver) bitsToTrits(h uint8, l uint8) int8 {
 }
 
 // convert trit to bits
-func (f *PiDiver) tritToBits(trit int8) (uint32, uint32) {
+func tritToBits(trit int8) (uint32, uint32) {
 	switch trit {
 	case 0:
 		return 0x1, 0x1
@@ -303,7 +300,7 @@ func (f *PiDiver) tritToBits(trit int8) (uint32, uint32) {
 }
 
 // calculate CRC32-MPEG
-func (f *PiDiver) crc(bytes []byte, l int) uint32 {
+func crc(bytes []byte, l int) uint32 {
 	value := uint32(0xffffffff)
 	for i := 0; i < l; i++ {
 		value = (value << 8) ^ crctab[((value>>24)^uint32(bytes[i]))&0xff]
@@ -312,7 +309,7 @@ func (f *PiDiver) crc(bytes []byte, l int) uint32 {
 }
 
 // swap bytes
-func (f *PiDiver) swapBytes(data uint32) uint32 {
+func swapBytes(data uint32) uint32 {
 	return ((data & 0xff000000) >> 24) |
 		((data & 0x00ff0000) >> 8) |
 		((data & 0x0000ff00) << 8) |
@@ -320,21 +317,21 @@ func (f *PiDiver) swapBytes(data uint32) uint32 {
 }
 
 // send trytes for midstate calculation and check for transmission errors
-func (f *PiDiver) sendTritData(trytes string) error {
+func sendTritData(trytes string) error {
 	uint32Data := make([]uint32, HASH_LENGTH/DATA_WIDTH)
 	verifyData := make([]uint32, HASH_LENGTH/DATA_WIDTH)
 	for tries := 1; ; tries++ {
 		for i := 0; i < HASH_LENGTH/DATA_WIDTH; i++ {
 			key := trytes[i*3 : i*3+3]
-			uint32Data[i] = f.tryteMap[key]
+			uint32Data[i] = tryteMap[key]
 			verifyData[i] = (uint32Data[i] & 0xffff0300) | (uint32(i)&0x3f)<<10 | (uint32(i)&0xc0)>>6
 		}
-		f.resetWritePointer()
-		f.sendBlock(uint32Data)
+		resetWritePointer()
+		sendBlock(uint32Data)
 		verifyBytes := *(*[HASH_LENGTH / DATA_WIDTH * 4]byte)(unsafe.Pointer(&verifyData[0]))
 
-		crc32Verify := f.crc(verifyBytes[:], len(verifyBytes))
-		crc32 := f.readCRC32()
+		crc32Verify := crc(verifyBytes[:], len(verifyBytes))
+		crc32 := readCRC32()
 		//		log.Printf("CRC32: %08x\n", crc32)
 		//		log.Printf("CRC32 Verify: %08x\n", crc32Verify)
 
@@ -354,18 +351,18 @@ func (f *PiDiver) sendTritData(trytes string) error {
 }
 
 // send block for midstate calculation
-func (f *PiDiver) curlSendBlock(trytes string, doCurl bool) error {
-	if err := f.sendTritData(trytes); err != nil {
+func curlSendBlock(trytes string, doCurl bool) error {
+	if err := sendTritData(trytes); err != nil {
 		return err
 	}
 	cmd := CMD_WRITE_FLAGS | FLAG_CURL_WRITE
 	if doCurl {
 		cmd |= FLAG_CURL_DO_CURL
 	}
-	f.send(cmd)
+	send(cmd)
 	
 	// instantly read back ... curl needs <1µs on fpga and spi is slower
-	if f.getFlags() & FLAG_CURL_FINISHED == 0 {
+	if getFlags() & FLAG_CURL_FINISHED == 0 {
 		return errors.New("Curl didn't finish")
 	}
 	return nil
@@ -373,20 +370,20 @@ func (f *PiDiver) curlSendBlock(trytes string, doCurl bool) error {
 
 // setup fpga for midstate calculation
 func (f *PiDiver) curlInitBlock() {
-	f.send(CMD_WRITE_FLAGS | FLAG_CURL_RESET)
+	send(CMD_WRITE_FLAGS | FLAG_CURL_RESET)
 }
 
 // do PoW
-func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
+func PowPiDiver(trytes Trytes, minWeight int) (Trytes, error) {
 	// do mid-state-calculation on FPGA
 	start := time.Now()
-	f.curlInitBlock()
+	curlInitBlock()
 	for blocknr := 0; blocknr < 33; blocknr++ {
 		doCurl := true
 		if blocknr == 32 {
 			doCurl = false
 		}
-		if err := f.curlSendBlock(trytes[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
+		if err := curlSendBlock(trytes[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
 			return "", err
 		}
 	}
@@ -394,14 +391,14 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 	log.Printf("MidState: %s", elapsed)
 
 	// write min weight magnitude
-	f.writeMinWeightMagnitude(uint32(minWeight))
+	writeMinWeightMagnitude(uint32(minWeight))
 
 	// start PoW
-	f.startPow()
+	startPow()
 
 	start = time.Now()
 	for {
-		flags := f.getFlags()
+		flags := getFlags()
 
 		if (flags&FLAG_RUNNING) == 0 && ((flags&FLAG_FOUND) != 0 || (flags&FLAG_OVERFLOW) != 0) {
 			break
@@ -411,8 +408,8 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 	elapsed = time.Since(start)
 	log.Printf("Pow: %s", elapsed)
 
-	binary_nonce := f.readBinaryNonce() - 2 // -2 because of pipelining for speed on FPGA
-	mask := f.getMask()
+	binary_nonce := readBinaryNonce() - 2 // -2 because of pipelining for speed on FPGA
+	mask := getMask()
 
 	log.Printf("Found nonce: %08x (mask: %08x)\n", binary_nonce, mask)
 
@@ -422,7 +419,7 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 
 	// find set bit in mask
 	found_bit := uint32(0)
-	for i := uint32(0); i < f.parallel; i++ {
+	for i := uint32(0); i < parallel; i++ {
 		if mask&(1<<i) != 0 {
 			found_bit = i
 			break
@@ -448,7 +445,7 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 	}
 
 	// insert initial nonce trits bit thingies
-	for j := 0; j <= f.log2; j++ {
+	for j := 0; j <= log2; j++ {
 		bitsLo[j+24] = uint8((found_bit >> uint32(j)) & 0x1)
 		bitsHi[j+24] = uint8((^(found_bit >> uint32(j))) & 0x1)
 	}
@@ -462,11 +459,12 @@ func (f *PiDiver) DoPoW(trytes string, minWeight int) (string, error) {
 	// convert trits to trytes
 	nonceTrits := make([]int8, NONCE_TRINARY_SIZE)
 	for i := 0; i < NONCE_TRINARY_SIZE; i++ {
-		nonceTrits[i] = f.bitsToTrits(bitsHi[i], bitsLo[i])
+		nonceTrits[i] = bitsToTrits(bitsHi[i], bitsLo[i])
 	}
 
-	return string(giota.Trits(nonceTrits).Trytes()), nil
+	return giota.Trits(nonceTrits).Trytes(), nil
 }
+
 /*
 func main() {
 	// test transaction data
