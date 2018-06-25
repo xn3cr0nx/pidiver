@@ -156,13 +156,12 @@ func InitPiDiver() error {
 	log.Printf("Parallel Level Detected: %d\n", parallel)
 
 	// log2(parallel)
-	log2 := 0
+	log2 = 0
 	for i := 0; i < 32; i++ {
 		if (parallel & (1 << uint32(i))) != 0 {
 			log2 = i
 		}
 	}
-	log2 = log2
 
 	// table calculates all bits for AAA -> ZZZ including byte-swap
 	tryteMap = make(map[string]uint32)
