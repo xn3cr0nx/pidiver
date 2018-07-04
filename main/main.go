@@ -6,7 +6,8 @@ import (
 	"github.com/iotaledger/giota"
 	"log"
 	"math/rand"
-	"pidiver"
+	"github.com/shufps/pidiver/pidiver"
+	//"pidiver"
 )
 
 const APP_VERSION = "0.1"
