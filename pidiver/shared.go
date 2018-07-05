@@ -25,12 +25,16 @@ const (
 	STATE_ERROR       = uint8(0xff)
 
 	// usb commands
+	CMD_GET_VERSION	   = uint8(0x01)
 	CMD_FLASH_ERASE    = uint8(0x10)
 	CMD_SET_PAGE       = uint8(0x11)
 	CMD_WRITE_PAGE     = uint8(0x12)
 	CMD_READ_PAGE      = uint8(0x13)
 	CMD_CONFIGURE_FPGA = uint8(0x14)
 	CMD_READ_STATUS    = uint8(0x15)
+	
+	CMD_CONFIGURE_FPGA_BLOCK = uint8(0x16)
+	CMD_CONFIGURE_FPGA_START = uint8(0x17)
 
 	CMD_DO_POW = uint8(0x20)
 

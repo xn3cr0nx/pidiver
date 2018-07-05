@@ -60,6 +60,11 @@ type PoWResult struct {
 	Time     uint32 `struc:"uint32,little"`
 }
 
+type Version struct {
+	Major uint32 `struc:"uint32,little"`
+	Minor uint32 `struc:"uint32,little"`
+}
+
 var port io.ReadWriteCloser
 var id = uint8(0)
 
@@ -162,6 +167,21 @@ func fpgaReadStatus() (Status, error) {
 	return status, nil
 }
 
+func getVersion() (Version, error) {
+	com := Com{Cmd: CMD_GET_VERSION, Length: 1}
+	if _, err := usbRequest(&com, 1000); err != nil {
+		return Version{}, err
+	}
+
+	var version Version
+	if err := struc.Unpack(bytes.NewReader(com.Data[0:com.Length]), &version); err != nil {
+		return Version{}, err
+	}
+
+	return version, nil
+}
+
+
 func flashSetPage(page uint32) error {
 	com := Com{Cmd: CMD_SET_PAGE, Length: 4}
 	com.Data[0] = uint8(page & 0x000000ff)
@@ -250,6 +270,63 @@ func flashWriteMeta(meta *Meta) error {
 	err = flashWritePageNumber(FLASH_META_PAGE, buf.Bytes())
 	return err
 }
+
+func fpgaConfigureStart() error {
+	com := Com{Cmd: CMD_CONFIGURE_FPGA_START, Length: 1}
+	_, err := usbRequest(&com, 1000)
+	return err
+}
+
+func fpgaConfigureBlock(data []uint8, l uint16) error {
+	com := Com{Cmd: CMD_CONFIGURE_FPGA_BLOCK, Length: l}
+	copy(com.Data[0:l], data[0:l]) // data can be shorted than FLASH_SPI_PAGESIZE])
+	_, err := usbRequest(&com, 1000)
+	return err
+}
+
+func fpgaConfigureUpload(filename string) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	stats, statsErr := f.Stat()
+	if statsErr != nil {
+		return err
+	}
+
+	var size int = int(stats.Size())
+	if size > FLASH_SIZE {
+		return errors.New("file is too big! >1MB")
+	}
+	
+	data := make([]byte, size)
+	_, err = bufio.NewReader(f).Read(data)
+	if err != nil {
+		return err
+	}
+
+	err = fpgaConfigureStart()
+	if err != nil {
+		return err
+	}
+	
+	var toFlash int = size
+	var chunk int
+	var offset int
+	for ;toFlash>0; {
+		chunk = min(toFlash, 8192)
+		log.Printf("configuring %d%%\n", int(float32(offset) / float32(size) * 100)) 
+		err = fpgaConfigureBlock(data[offset:offset+chunk], uint16(chunk))
+		
+		toFlash -= chunk
+		offset += chunk
+		
+	}
+	return nil
+}
+
 
 func flashUpload(filename string) error {
 	f, err := os.Open(filename)
@@ -353,34 +430,55 @@ func InitUSBDiver(config *PiDiverConfig) error {
 		log.Fatal(err)
 	}
 
-	var meta Meta
-	meta, err = flashReadMeta()
-	if config.ForceFlash || meta.Timestamp == 0xffffffffffffffff {
-		log.Printf("flash is empty (or flashing is forced\n")
-		err := flashUpload(config.ConfigFile)
-		if err != nil {
-			log.Fatalf("error flashing file %s\n", config.ConfigFile)
-		} else {
-			log.Printf("flashing was successful!")
-		}
-	} else {
-		log.Printf("configuration in flash found:\n")
-		log.Printf("Timestamp: %d\n", meta.Timestamp)
-		log.Printf("Filename: %s\n", string(meta.Filename[:]))
-		log.Printf("Filesize: %d\n", meta.Filesize)
+	version, err := getVersion()
+	if err != nil {
+		return err
 	}
 
 	var status Status
 	status, err = fpgaReadStatus()
-
-	if config.ForceConfigure || status.IsFPGAConfigured == 0 {
-		log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
-		err = fpgaConfigure()
-		if err != nil {
-			log.Fatal("error configuring fpga")
+	if err != nil {
+		return err
+	}
+	
+	if version.Major == 1 && version.Minor == 0 {
+		// doesn't have flash
+		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
+			log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
+			err = fpgaConfigureUpload(config.ConfigFile)
+			if err != nil {
+				log.Fatal("error configuring fpga")
+			}
+			
+		}
+	} else if version.Major == 1 && version.Minor == 1 {
+		var meta Meta
+		meta, err = flashReadMeta()
+		if config.ForceFlash || meta.Timestamp == 0xffffffffffffffff {
+			log.Printf("flash is empty (or flashing is forced\n")
+			err := flashUpload(config.ConfigFile)
+			if err != nil {
+				log.Fatalf("error flashing file %s\n", config.ConfigFile)
+			} else {
+				log.Printf("flashing was successful!")
+			}
+		} else {
+			log.Printf("configuration in flash found:\n")
+			log.Printf("Timestamp: %d\n", meta.Timestamp)
+			log.Printf("Filename: %s\n", string(meta.Filename[:]))
+			log.Printf("Filesize: %d\n", meta.Filesize)
+		}
+	
+	
+		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
+			log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
+			err = fpgaConfigure()
+			if err != nil {
+				log.Fatal("error configuring fpga")
+			}
 		}
 	}
-
+	
 	status, err = fpgaReadStatus()
 
 	if status.IsFPGAConfigured == 0 {
