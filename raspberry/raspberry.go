@@ -9,7 +9,7 @@ import (
 	"time"
 	"unsafe"
 
-	"../pidiver"
+	"github.com/shufps/pidiver/pidiver"
 
 	"github.com/shufps/bcm2835"
 )
@@ -171,7 +171,7 @@ func llInit(config *pidiver.PiDiverConfig) error {
 	// configure pins for configuring
 	bcm2835.GpioFsel(GPIO_CONFDONE, bcm2835.Input)
 
-	if config.ForceConfigure || bcm2835.GpioLev(GPIO_CONFDONE) == 1 {
+	if config.ForceConfigure || bcm2835.GpioLev(GPIO_CONFDONE) == 0 {
 		bcm2835.GpioClr(GPIO_DCK)
 		bcm2835.GpioSet(GPIO_nCONFIG)
 		bcm2835.GpioFsel(GPIO_DATA0, bcm2835.Output)
