@@ -2,8 +2,9 @@ package pidiver
 
 import (
 	"errors"
-	"github.com/iotaledger/giota"
 	"time"
+
+	"github.com/iotaledger/giota"
 )
 
 const (
@@ -25,14 +26,14 @@ const (
 	STATE_ERROR       = uint8(0xff)
 
 	// usb commands
-	CMD_GET_VERSION	   = uint8(0x01)
+	CMD_GET_VERSION    = uint8(0x01)
 	CMD_FLASH_ERASE    = uint8(0x10)
 	CMD_SET_PAGE       = uint8(0x11)
 	CMD_WRITE_PAGE     = uint8(0x12)
 	CMD_READ_PAGE      = uint8(0x13)
 	CMD_CONFIGURE_FPGA = uint8(0x14)
 	CMD_READ_STATUS    = uint8(0x15)
-	
+
 	CMD_CONFIGURE_FPGA_BLOCK = uint8(0x16)
 	CMD_CONFIGURE_FPGA_START = uint8(0x17)
 
@@ -42,13 +43,6 @@ const (
 	FLASH_META_PAGE    = ((FLASH_SIZE / FLASH_SPI_PAGESIZE) - 1)
 	FLASH_SPI_PAGESIZE = 0x100
 
-	GPIO_nCONFIG  = 2
-	GPIO_DATA0    = 3
-	GPIO_DCK      = 4
-	GPIO_nSTATUS  = 17
-	GPIO_CONFDONE = 7
-
-	SPI_CS                    = 5
 	FLAG_RUNNING       uint32 = (1 << 0)
 	FLAG_FOUND         uint32 = (1 << 1)
 	FLAG_OVERFLOW      uint32 = (1 << 2)

@@ -1,130 +1,56 @@
 package pidiver
 
 import (
-	"bufio"
-	"encoding/binary"
 	"errors"
-	"github.com/iotaledger/giota"
-	"github.com/shufps/bcm2835"
 	"log"
-	"os"
 	"time"
 	"unsafe"
+
+	"github.com/iotaledger/giota"
 )
 
 var parallel uint32
 
-func configureFPGA(filename string) error {
-        f, err := os.Open(filename)
-        if err != nil {
-                return err
-        }
-        defer f.Close()
+type LLInitFunc func(config *PiDiverConfig) error
+type LLSPISendFunc func(data uint32) error
+type LLSPISendBlockFunc func(data []uint32) error
+type LLSPISendReceiveFunc func(cmd uint32) (uint32, error)
 
-        stats, statsErr := f.Stat()
-        if statsErr != nil {
-                return err
-        }
-
-        size := stats.Size()
-        data := make([]byte, size)
-        _, err = bufio.NewReader(f).Read(data)
-        if err != nil {
-                return err
-        }
-
-        log.Printf("bytes read: %d\n", size)
-        bcm2835.GpioClr(GPIO_DCK)
-
-        /* pulling FPGA_CONFIG to low resets the FPGA */
-        bcm2835.GpioClr(GPIO_nCONFIG)     /* FPGA config => low */
-        time.Sleep(time.Millisecond * 10) /* give it some time to do its reset stuff */
-
-        for {
-                if (bcm2835.GpioLev(GPIO_nSTATUS) != 0) && (bcm2835.GpioLev(GPIO_CONFDONE) != 0) {
-                        continue
-                }
-                break
-        }
-
-        bcm2835.GpioSet(GPIO_nCONFIG)
-        for {
-                if bcm2835.GpioLev(GPIO_nSTATUS) == 0 {
-                        continue
-                }
-                break
-        }
-
-        index := int64(0)
-        log.Printf("configuring ...")
-        for {
-//              log.Printf("index %d\n", index)
-                var value uint8 = data[index]
-                index++
-                for i := uint8(0); i < 8; i++ {
-                        if (value >> i) & 0x1 != 0 {
-                                bcm2835.GpioSet(GPIO_DATA0)
-                        } else {
-                                bcm2835.GpioClr(GPIO_DATA0)
-                        }
-                        bcm2835.GpioSet(GPIO_DCK)
-                        bcm2835.GpioClr(GPIO_DCK)
-                }
-                if bcm2835.GpioLev(GPIO_CONFDONE) == 0 && index < size {
-                        continue
-                }
-                break
-        }
-        log.Printf("configure done")
-        return nil
+type LLStruct struct {
+	LLInit           LLInitFunc
+	LLSPISend        LLSPISendFunc
+	LLSPISendReceive LLSPISendReceiveFunc
+	LLSPISendBlock   LLSPISendBlockFunc
 }
 
+var llStruct *LLStruct
 
-func InitPiDiver(config *PiDiverConfig) error {
-	err := bcm2835.Init() // Initialize the library
+func send(data uint32) error {
+	return llStruct.LLSPISend(data)
+}
+
+// send block of data for midstate
+func sendBlock(data []uint32) error {
+	return llStruct.LLSPISendBlock(data)
+}
+
+// send and receive
+func sendReceive(cmd uint32) (uint32, error) {
+	return llStruct.LLSPISendReceive(cmd)
+}
+
+func InitPiDiver(ll *LLStruct, config *PiDiverConfig) error {
+	llStruct = ll
+
+	err := llStruct.LLInit(config)
 	if err != nil {
-		return errors.New("Couldn't initialize BCM2835 Lib")
+		return err
 	}
 
-	// configure pins for configuring
-	bcm2835.GpioFsel(GPIO_CONFDONE, bcm2835.Input)
-
-	if config.ForceConfigure || bcm2835.GpioLev(GPIO_CONFDONE) == 1 {
-		bcm2835.GpioClr(GPIO_DCK)
-		bcm2835.GpioSet(GPIO_nCONFIG)
-		bcm2835.GpioFsel(GPIO_DATA0, bcm2835.Output)
-		bcm2835.GpioFsel(GPIO_DCK, bcm2835.Output)
-		bcm2835.GpioFsel(GPIO_nCONFIG, bcm2835.Output)
-		bcm2835.GpioFsel(GPIO_nSTATUS, bcm2835.Input)
-
-		log.Printf("fpga not configured (or force selected ... configuring ...")
-		err := configureFPGA(config.ConfigFile)
-		if err != nil {
-			return err
-		}
+	parallel, err = readParallelLevel()
+	if err != nil {
+		return err
 	}
-
-	if bcm2835.GpioLev(GPIO_CONFDONE) == 0 {
-		return errors.New("error configuring!")
-	}
-
-	/* init spi interface */
-	bcm2835.SpiBegin()
-	bcm2835.SpiSetBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST) /* default */
-	bcm2835.SpiSetDataMode(BCM2835_SPI_MODE0)              /* default */
-	bcm2835.SpiSetClockDivider(BCM2835_SPI_CLOCK_DIVIDER_32)
-	bcm2835.SpiChipSelect(BCM2835_SPI_CS_NONE) /* default */
-
-	bcm2835.GpioFsel(SPI_CS, bcm2835.Output)
-
-	bcm2835.GpioSet(SPI_CS)
-	time.Sleep(10 * time.Millisecond)
-	bcm2835.GpioClr(SPI_CS)
-	time.Sleep(10 * time.Millisecond)
-	bcm2835.GpioSet(SPI_CS)
-	time.Sleep(10 * time.Millisecond)
-
-	parallel = readParallelLevel()
 	log.Printf("Parallel Level Detected: %d\n", parallel)
 
 	// table calculates all bits for AAA -> ZZZ including byte-swap
@@ -151,72 +77,39 @@ func InitPiDiver(config *PiDiverConfig) error {
 	return nil
 }
 
-// send command
-func send(data uint32) {
-	var bytedata []byte = make([]byte, 4)
-	binary.BigEndian.PutUint32(bytedata, data)
-	bcm2835.GpioClr(SPI_CS)
-	bcm2835.SpiTransfern(bytedata)
-	bcm2835.GpioSet(SPI_CS)
-}
-
-// send block of data for midstate
-func sendBlock(data []uint32) {
-	for i := 0; i < len(data); i++ {
-		bytedata := *(*[4]byte)(unsafe.Pointer(&data[i]))
-		bcm2835.GpioClr(SPI_CS)
-		bcm2835.SpiTransfern(bytedata[:])
-		bcm2835.GpioSet(SPI_CS)
-	}
-}
-
-// send and receive
-func sendReceive(cmd uint32) uint32 {
-	bytedata := make([]byte, 4)
-	bytedata_read := make([]byte, 4)
-	binary.BigEndian.PutUint32(bytedata, cmd)
-
-	bcm2835.GpioClr(SPI_CS)
-	bcm2835.SpiTransfern(bytedata)
-	bcm2835.GpioSet(SPI_CS)
-	bcm2835.GpioClr(SPI_CS)
-	bcm2835.SpiTransfernb(bytedata_read, bytedata_read)
-	bcm2835.GpioSet(SPI_CS)
-	return binary.BigEndian.Uint32(bytedata_read)
-}
-
 // start PoW
-func startPow() {
-	send(CMD_WRITE_FLAGS | FLAG_START)
+func startPow() error {
+	return send(CMD_WRITE_FLAGS | FLAG_START)
 }
 
 // reset write pointer on FPGA
-func resetWritePointer() {
-	send(CMD_RESET_WRPTR)
+func resetWritePointer() error {
+	return send(CMD_RESET_WRPTR)
 }
 
 // not used ... faster version with tables is used
-func writeData(tritshi uint32, tritslo uint32) {
+func writeData(tritshi uint32, tritslo uint32) error {
 	cmd := CMD_WRITE_DATA
 
 	cmd |= tritslo & 0x000001ff
 	cmd |= (tritshi & 0x000001ff) << 9
 
-	send(cmd)
+	return send(cmd)
 }
 
 // read parallel level of FPGA
-func readParallelLevel() uint32 {
-	return (sendReceive(CMD_READ_FLAGS) & 0x000000f0) >> 4
+func readParallelLevel() (uint32, error) {
+	val, err := sendReceive(CMD_READ_FLAGS)
+	return (val & 0x000000f0) >> 4, err
 }
 
 // read binary nonce
-func readBinaryNonce() uint32 {
+func readBinaryNonce() (uint32, error) {
 	return sendReceive(CMD_READ_NONCE)
 }
 
 // red CRC32
-func readCRC32() uint32 {
+func readCRC32() (uint32, error) {
 	return sendReceive(CMD_READ_CRC32)
 }
 
@@ -228,13 +121,15 @@ func writeMinWeightMagnitude(bits uint32) {
 }
 
 // get Mask
-func getMask() uint32 {
-	return ((sendReceive(CMD_READ_FLAGS) >> 8) & ((1 << parallel) - 1))
+func getMask() (uint32, error) {
+	val, err := sendReceive(CMD_READ_FLAGS)
+	return ((val >> 8) & ((1 << parallel) - 1)), err
 }
 
 // get Flags
-func getFlags() uint32 {
-	return sendReceive(CMD_READ_FLAGS) & 0x0000000f
+func getFlags() (uint32, error) {
+	val, err := sendReceive(CMD_READ_FLAGS)
+	return (val & 0x0000000f), err
 }
 
 // send trytes for midstate calculation and check for transmission errors
@@ -252,7 +147,10 @@ func sendTritData(trytes string) error {
 		verifyBytes := *(*[HASH_LENGTH / DATA_WIDTH * 4]byte)(unsafe.Pointer(&verifyData[0]))
 
 		crc32Verify := crc(verifyBytes[:], len(verifyBytes))
-		crc32 := readCRC32()
+		crc32, err := readCRC32()
+		if err != nil {
+			return err
+		}
 		//		log.Printf("CRC32: %08x\n", crc32)
 		//		log.Printf("CRC32 Verify: %08x\n", crc32Verify)
 
@@ -283,7 +181,8 @@ func curlSendBlock(trytes string, doCurl bool) error {
 	send(cmd)
 
 	// instantly read back ... curl needs <1µs on fpga and spi is slower
-	if getFlags()&FLAG_CURL_FINISHED == 0 {
+	flags, err := getFlags()
+	if flags&FLAG_CURL_FINISHED == 0 || err != nil {
 		return errors.New("Curl didn't finish")
 	}
 	return nil
@@ -318,7 +217,10 @@ func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 
 	powStart := makeTimestamp()
 	for {
-		flags := getFlags()
+		flags, err := getFlags()
+		if err != nil {
+			return giota.Trytes(""), err
+		}
 
 		if (flags&FLAG_RUNNING) == 0 && ((flags&FLAG_FOUND) != 0 || (flags&FLAG_OVERFLOW) != 0) {
 			break
@@ -327,8 +229,12 @@ func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	}
 	powEnd := makeTimestamp()
 
-	binary_nonce := readBinaryNonce() - 2 // -2 because of pipelining for speed on FPGA
-	mask := getMask()
+	binary_nonce, err := readBinaryNonce()
+	if err != nil {
+		return giota.Trytes(""), err
+	}
+	binary_nonce -= 2 // -2 because of pipelining for speed on FPGA
+	mask, err := getMask()
 	log.Printf("Found nonce: %08x (mask: %08x)\n", binary_nonce, mask)
 	log.Printf("PoW-Time: %dms\n", (powEnd-powStart)+(midStateEnd-midStateStart))
 
