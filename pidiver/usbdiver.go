@@ -50,7 +50,7 @@ type Page struct {
 type Trytes struct {
 	Data  [891]uint32 `struc:"[891]uint32,little"`
 	CRC32 [33]uint32  `struc:"[33]uint32,little"`
-	MWM   uint32      `struc:uint32, little"`
+	MWM   uint32      `struc:"uint32,little"`
 }
 
 type PoWResult struct {
@@ -512,7 +512,7 @@ func PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	}
 	copy(com.Data[0:], tmpBuffer.Bytes())
 
-	com.Length = 891 * 4             //3569;
+	com.Length = 3700 // (891 + 33 + 1) * 4             
 	_, err = usbRequest(&com, 10000) // 10sec enough?
 	if err != nil {
 		return giota.Trytes(""), err
