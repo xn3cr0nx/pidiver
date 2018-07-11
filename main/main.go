@@ -6,8 +6,8 @@ import (
 	"log"
 	"math/rand"
 
-	"../pidiver"
-	"../raspberry"
+	"github.com/shufps/pidiver/pidiver"
+	"github.com/shufps/pidiver/raspberry"
 	"github.com/iotaledger/giota"
 )
 
