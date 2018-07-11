@@ -156,7 +156,6 @@ func sendTritData(trytes string) error {
 
 		if crc32Verify != crc32 {
 			log.Printf("Transfer Error (%d/10).\n", tries)
-			tries++
 			if tries == 11 {
 				return errors.New("CRC32 error - giving up ...")
 			}
