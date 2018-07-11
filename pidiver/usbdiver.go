@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"github.com/iotaledger/giota"
-	"github.com/lunixbochs/struc"
-	"github.com/tarm/goserial"
 	"io"
 	"log"
 	"os"
 	"reflect"
 	"time"
+
+	"github.com/iotaledger/giota"
+	"github.com/lunixbochs/struc"
+	"github.com/tarm/goserial"
 )
 
 const (
@@ -181,7 +182,6 @@ func getVersion() (Version, error) {
 	return version, nil
 }
 
-
 func flashSetPage(page uint32) error {
 	com := Com{Cmd: CMD_SET_PAGE, Length: 4}
 	com.Data[0] = uint8(page & 0x000000ff)
@@ -300,7 +300,7 @@ func fpgaConfigureUpload(filename string) error {
 	if size > FLASH_SIZE {
 		return errors.New("file is too big! >1MB")
 	}
-	
+
 	data := make([]byte, size)
 	_, err = bufio.NewReader(f).Read(data)
 	if err != nil {
@@ -311,22 +311,21 @@ func fpgaConfigureUpload(filename string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	var toFlash int = size
 	var chunk int
 	var offset int
-	for ;toFlash>0; {
+	for toFlash > 0 {
 		chunk = min(toFlash, 8192)
-		log.Printf("configuring %d%%\n", int(float32(offset) / float32(size) * 100)) 
+		log.Printf("configuring %d%%\n", int(float32(offset)/float32(size)*100))
 		err = fpgaConfigureBlock(data[offset:offset+chunk], uint16(chunk))
-		
+
 		toFlash -= chunk
 		offset += chunk
-		
+
 	}
 	return nil
 }
-
 
 func flashUpload(filename string) error {
 	f, err := os.Open(filename)
@@ -440,7 +439,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if version.Major == 1 && version.Minor == 0 {
 		// doesn't have flash
 		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
@@ -449,7 +448,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 			if err != nil {
 				log.Fatal("error configuring fpga")
 			}
-			
+
 		}
 	} else if version.Major == 1 && version.Minor == 1 {
 		var meta Meta
@@ -468,8 +467,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 			log.Printf("Filename: %s\n", string(meta.Filename[:]))
 			log.Printf("Filesize: %d\n", meta.Filesize)
 		}
-	
-	
+
 		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
 			log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
 			err = fpgaConfigure()
@@ -478,7 +476,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 			}
 		}
 	}
-	
+
 	status, err = fpgaReadStatus()
 
 	if status.IsFPGAConfigured == 0 {
@@ -500,8 +498,7 @@ func PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 
 	var data Trytes
 	for i := 0; i < 891; i++ {
-		// double swap to keep compatibility to pidiver
-		data.Data[i] = swapBytes(tryteMap[string(trytes[i*3:i*3+3])])
+		data.Data[i] = tryteMap[string(trytes[i*3:i*3+3])]
 	}
 	data.MWM = uint32(minWeight)
 
@@ -512,7 +509,7 @@ func PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	}
 	copy(com.Data[0:], tmpBuffer.Bytes())
 
-	com.Length = 3700 // (891 + 33 + 1) * 4             
+	com.Length = 3700                // (891 + 33 + 1) * 4
 	_, err = usbRequest(&com, 10000) // 10sec enough?
 	if err != nil {
 		return giota.Trytes(""), err

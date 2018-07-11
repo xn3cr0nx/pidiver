@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"time"
-	"unsafe"
 
 	"github.com/shufps/pidiver/pidiver"
 
@@ -74,10 +73,7 @@ func send(data uint32) error {
 // send block of data for midstate
 func sendBlock(data []uint32) error {
 	for i := 0; i < len(data); i++ {
-		bytedata := *(*[4]byte)(unsafe.Pointer(&data[i]))
-		bcm2835.GpioClr(SPI_CS)
-		bcm2835.SpiTransfern(bytedata[:])
-		bcm2835.GpioSet(SPI_CS)
+		send(data[i])
 	}
 	return nil
 }

@@ -53,7 +53,7 @@ func InitPiDiver(ll *LLStruct, config *PiDiverConfig) error {
 	}
 	log.Printf("Parallel Level Detected: %d\n", parallel)
 
-	// table calculates all bits for AAA -> ZZZ including byte-swap
+	// table calculates all bits for AAA -> ZZZ
 	tryteMap = make(map[string]uint32)
 	for i := 0; i < 27; i++ {
 		for j := 0; j < 27; j++ {
@@ -68,7 +68,7 @@ func InitPiDiver(ll *LLStruct, config *PiDiverConfig) error {
 					tritslo |= tmpLo << uint32(j)
 					tritshi |= tmpHi << uint32(j)
 				}
-				uint32Data = swapBytes((tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA)
+				uint32Data = (tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA
 				tryteMap[key] = uint32Data
 			}
 		}
@@ -140,7 +140,7 @@ func sendTritData(trytes string) error {
 		for i := 0; i < HASH_LENGTH/DATA_WIDTH; i++ {
 			key := trytes[i*3 : i*3+3]
 			uint32Data[i] = tryteMap[key]
-			verifyData[i] = (uint32Data[i] & 0xffff0300) | (uint32(i)&0x3f)<<10 | (uint32(i)&0xc0)>>6
+			verifyData[i] = (swapBytes(uint32Data[i]) & 0xffff0300) | (uint32(i)&0x3f)<<10 | (uint32(i)&0xc0)>>6
 		}
 		resetWritePointer()
 		sendBlock(uint32Data)
