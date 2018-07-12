@@ -53,27 +53,7 @@ func InitPiDiver(ll *LLStruct, config *PiDiverConfig) error {
 	}
 	log.Printf("Parallel Level Detected: %d\n", parallel)
 
-	// table calculates all bits for AAA -> ZZZ
-	tryteMap = make(map[string]uint32)
-	for i := 0; i < 27; i++ {
-		for j := 0; j < 27; j++ {
-			for k := 0; k < 27; k++ {
-				key := string(TRYTE_CHARS[i:i+1] + TRYTE_CHARS[j:j+1] + TRYTE_CHARS[k:k+1])
-				xtrits := giota.Trytes(key).Trits()
-				uint32Data := uint32(0)
-				tritslo := uint32(0)
-				tritshi := uint32(0)
-				for j := 0; j < 9; j++ {
-					tmpHi, tmpLo := tritToBits(xtrits[j])
-					tritslo |= tmpLo << uint32(j)
-					tritshi |= tmpHi << uint32(j)
-				}
-				uint32Data = (tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA
-				tryteMap[key] = uint32Data
-			}
-		}
-	}
-	log.Printf("Table calculated\n")
+	initTryteMap()
 	return nil
 }
 

@@ -62,14 +62,14 @@ func main() {
 		}
 		log.Printf("Nonce-Trytes: %s\n", ret)
 		// verify result
-		trytes := giota.Trytes(string(randomTrytes) + transaction[256:len(transaction)-27] + string(ret[0:27]))
+/*		trytes := giota.Trytes(string(randomTrytes) + transaction[256:len(transaction)-27] + string(ret[0:27]))
 		log.Printf("hash: %s\n\n", trytes.Hash())
 		tritsHash := trytes.Hash().Trits()
 		for i := 0; i < mwm; i++ {
 			if tritsHash[len(tritsHash)-1-i] != 0 {
 				log.Fatalf("verify error at %d!\n", i)
 			}
-		}
+		}*/
 	}
 
 }

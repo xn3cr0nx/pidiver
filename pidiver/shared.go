@@ -254,7 +254,7 @@ func initTryteMap() {
 					tritslo |= tmpLo << uint32(j)
 					tritshi |= tmpHi << uint32(j)
 				}
-				uint32Data = swapBytes((tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA)
+				uint32Data = (tritslo & 0x000001ff) | ((tritshi & 0x000001ff) << 9) | CMD_WRITE_DATA
 				tryteMap[key] = uint32Data
 			}
 		}

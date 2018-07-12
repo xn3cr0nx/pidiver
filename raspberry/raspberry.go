@@ -155,6 +155,7 @@ func configureFPGA(filename string) error {
 		break
 	}
 	log.Printf("configure done")
+
 	return nil
 }
 
