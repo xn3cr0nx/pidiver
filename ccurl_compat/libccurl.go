@@ -31,8 +31,7 @@ func ccurl_pow(trytes *C.char, mwm uint) *C.char {
 		initialized = true
 	}
 	goTrytes := C.GoString(trytes)
-	//	println(goTrytes)
-	//println(C.GoString(trytes))
+
 	nonce, err := pidiver.PowUSBDiver(giota.Trytes(goTrytes), int(mwm))
 	if err != nil {
 		println("error pow!")
@@ -41,7 +40,7 @@ func ccurl_pow(trytes *C.char, mwm uint) *C.char {
 	println("Nonce: " + nonce)
 
 	result := goTrytes[0:giota.NonceTrinaryOffset/3] + string(nonce)[0:giota.NonceTrinarySize/3]
-	//	println(result)
+
 	return C.CString(result)
 }
 
