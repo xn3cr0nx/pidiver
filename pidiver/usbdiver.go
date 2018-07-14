@@ -42,6 +42,7 @@ type Meta struct {
 	Timestamp uint64   `struc:"uint64,little"`
 	Filename  [32]rune `struc:"[32]uint8"`
 	Filesize  uint32   `struc:"uint32,little"`
+	AutoConf  uint8    `struc:"uint8"`
 }
 
 type Page struct {
@@ -429,18 +430,18 @@ func InitUSBDiver(config *PiDiverConfig) error {
 		log.Fatal(err)
 	}
 
-	version, err := getVersion()
-	if err != nil {
-		return err
-	}
-
+	/*	version, err := getVersion()
+		if err != nil {
+			return err
+		}
+	*/
 	var status Status
 	status, err = fpgaReadStatus()
 	if err != nil {
 		return err
 	}
 
-	if version.Major == 1 && version.Minor == 0 {
+	if true /*version.Major == 1 && version.Minor == 0*/ {
 		// doesn't have flash
 		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
 			log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
@@ -450,7 +451,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 			}
 
 		}
-	} else if version.Major == 1 && version.Minor == 1 {
+	} /* else if version.Major == 1 && version.Minor == 1 {
 		var meta Meta
 		meta, err = flashReadMeta()
 		if config.ForceFlash || meta.Timestamp == 0xffffffffffffffff {
@@ -475,7 +476,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 				log.Fatal("error configuring fpga")
 			}
 		}
-	}
+	}*/
 
 	status, err = fpgaReadStatus()
 
@@ -521,7 +522,7 @@ func PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	}
 
 	log.Printf("Found nonce: %08x (mask: %08x)\n", powResult.Nonce, powResult.Mask)
-	log.Printf("PoW-Time: %dms\n", powResult.Time)
+	log.Printf("PoW-Time: %dms (%.2fMH/s)\n", powResult.Time, 1.0/(float32(powResult.Time+1)/1000.0)*float32(powResult.Nonce*powResult.Parallel)/1000000.0)
 
 	return assembleNonce(powResult.Nonce, powResult.Mask, powResult.Parallel)
 }

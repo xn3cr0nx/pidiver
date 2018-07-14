@@ -143,7 +143,6 @@ func sendTritData(trytes string) error {
 		} else {
 			break
 		}
-		break
 	}
 	return nil
 }
