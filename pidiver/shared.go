@@ -94,6 +94,14 @@ const (
 	BCM2835_SPI_CLOCK_DIVIDER_1     uint16 = 1     ///< 0 = 262.144us = 3.814697260kHz, same as 0/65536
 )
 
+type PiDiverConfig struct {
+	Device         string
+	ConfigFile     string
+	ForceFlash     bool
+	ForceConfigure bool
+	UseCRC         bool
+}
+
 var crctab = []uint32{
 	0x00000000,
 	0x04C11DB7, 0x09823B6E, 0x0D4326D9, 0x130476DC, 0x17C56B6B,
@@ -273,7 +281,7 @@ func assembleNonce(nonce uint32, mask uint32, parallel uint32) (giota.Trytes, er
 	// log2(parallel)
 	log2 := 0
 	for i := 0; i < 32; i++ {
-		if (parallel & (1 << uint32(i))) != 0 {
+		if ((parallel - 1) & (1 << uint32(i))) != 0 {
 			log2 = i
 		}
 	}
