@@ -1,18 +1,16 @@
 # IOTA VHDL PoW (Pearl Diver)
 
-IOTA’s PoW needs a lot of calculation power. For instance, a test with an example transaction showed that the Raspberry needs about 90 seconds until it founds a valid nonce.
+IOTA PoW needs a lot of computational power which makes sending transactions on smaller microcontrollers (like ARM) very slow. One of the main reasons is that the innerst loop of Curl-P81 can’t be computed very efficient on general purpose CPUs. Even modern CPUs with SIMD extension (like SSE or AVX) are heavily restricted when it comes to true parallel calculations.
 
-In order to speed up PoW dramatically, the IOTA Pearl-Diver algorithm was ported to a FPGA (VHDL) which enables platforms like Raspberry Pi to find a valid nonce within ~350ms.
+This project is about development of a hardware accelerator for doing PoW on embedded Systems and low-end PCs efficiently.
 
-Currently, it is running on Altera DE1 (Cyclon2 with 22kLE @ 220MHz, 85% resources used) and archives 12.8MH/s - for an arbitrary choosen transaction it took less than 500ms to find a valid nonce.
+The PiDiver archives about 15.8MH/s and it is able to do PoW faster (about x5.8) than the SSE-optimized dcurl library on a quad-core i5 PC but only needs 2W instead of 100W.
 
-This respository will not only contain VHDL source code and Altera DE1 project-files but also everything needed for a custom PCB (with a modern FPGA Cyclone 10 LP) which is plugged on top of a Raspberry Pi. Proto-Type is reaching 14.6MH/s :)
+Statistically, 25% of all nonces are found within 87ms, 50% within 200ms and 75% within 422ms. That gives an average of 3.33 TX/s or 0.66 TPS (bundle with 5TX).
 
-There is a fork of dcurl here which supports the FPGA here:
+Comparing to an Raspberry Pi, that's a speed-up of >200.
 
-https://github.com/shufps/dcurl
-
-Please have a look on the project website:
+https://ecosystem.iota.org/projects/iota-pearl-diver-pow-fpga-raspberry-pi
 
 http://microengineer.eu/2018/04/25/iota-pearl-diver-fpga/
 
