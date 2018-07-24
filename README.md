@@ -1,4 +1,4 @@
-# Golang-PiDiver-Lib for the PiDiver
+# Golang-PiDiver-Lib for the PiDiver and USBDiver
 
 IOTA PoW needs a lot of computational power which makes sending transactions on smaller microcontrollers (like ARM) very slow. One of the main reasons is that the innerst loop of Curl-P81 can’t be computed very efficient on general purpose CPUs. Even modern CPUs with SIMD extension (like SSE or AVX) are heavily restricted when it comes to true parallel calculations.
 
