@@ -10,6 +10,8 @@ import (
 )
 
 var parallel uint32
+var versionMinor uint32
+var versionMajor uint32
 
 type LLInitFunc func(config *PiDiverConfig) error
 type LLSPISendFunc func(data uint32) error
@@ -46,6 +48,9 @@ func InitPiDiver(ll *LLStruct, config *PiDiverConfig) error {
 	if err != nil {
 		return err
 	}
+
+	versionMajor, versionMinor, err = readFPGAVersion()
+	log.Printf("FPGA version: %d.%d\n", versionMajor, versionMinor)
 
 	parallel, err = readParallelLevel()
 	if err != nil {
@@ -112,6 +117,42 @@ func getFlags() (uint32, error) {
 	return (val & 0x0000000f), err
 }
 
+func unlockReservation() error {
+	return send(CMD_WRITE_FLAGS | FLAG_RESERVATION_RESET)
+}
+
+func readFPGAVersion() (uint32, uint32, error) {
+	val, err := sendReceive(CMD_READ_FLAGS)
+	minor := (val >> 24) & 0xf
+	major := (val >> 28) & 0xf
+	return major, minor, err
+}
+
+func waitForReservation(timeout time.Duration) error {
+	start := time.Now()
+	for {
+		// make reservation
+		err := send(CMD_WRITE_FLAGS | (FLAG_RESERVATION_PI << FLAG_RESERVATION_WRITE_SHIFT))
+		if err != nil {
+			return err
+		}
+		// got device?
+		flags, err := sendReceive(CMD_READ_FLAGS)
+		if err != nil {
+			return err
+		}
+		// if yes, then return
+		if flags&FLAG_RESERVATION_READ == (FLAG_RESERVATION_PI << FLAG_RESERVATION_READ_SHIFT) {
+			return nil
+		}
+		// no wait and try again
+		if time.Since(start) > timeout {
+			return errors.New("couldn't get device reservation")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 // send trytes for midstate calculation and check for transmission errors
 func sendTritData(trytes string) error {
 	uint32Data := make([]uint32, HASH_LENGTH/DATA_WIDTH)
@@ -173,6 +214,18 @@ func curlInitBlock() {
 
 // do PoW
 func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+	if versionMajor == 1 && versionMinor == 1 {
+		err := waitForReservation(5000 * time.Millisecond)
+		if err != nil {
+			unlockReservation()
+			err := waitForReservation(5000 * time.Millisecond)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+	defer unlockReservation()
+
 	// do mid-state-calculation on FPGA
 	midStateStart := makeTimestamp()
 	curlInitBlock()

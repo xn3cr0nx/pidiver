@@ -67,6 +67,11 @@ type Version struct {
 	Minor uint32 `struc:"uint32,little"`
 }
 
+type Reservation struct {
+	Timeout uint32 `struc:"uint32,little"`
+	Result  uint32 `struc:"uint32,little"`
+}
+
 var port io.ReadWriteCloser
 var id = uint8(0)
 
@@ -285,6 +290,32 @@ func fpgaConfigureBlock(data []uint8, l uint16) error {
 	return err
 }
 
+/*
+func usbUnlockReservation() error {
+	com := Com{Cmd: CMD_RESETVATION_RESET, Length: 1}
+	_, err := usbRequest(&com, 1000)
+	return err
+}
+
+func usbWaitForReservation(timeout time.Duration) error {
+	com := Com{Cmd: CMD_RESERVATION, Length: 8}
+	reservation := Reservation{Timeout: uint32(timeout / time.Millisecond), Result: 0}
+	var buf bytes.Buffer
+	err := struc.Pack(&buf, reservation)
+	copy(com.Data[0:8], buf.Bytes()[0:8])
+	_, err = usbRequest(&com, 6000)
+	if err != nil {
+		return err
+	}
+
+	err = struc.Unpack(bytes.NewReader(com.Data[0:com.Length]), &reservation)
+	if err != nil || reservation.Result != 1 {
+		return err
+	}
+
+	return err
+}
+*/
 func fpgaConfigureUpload(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {

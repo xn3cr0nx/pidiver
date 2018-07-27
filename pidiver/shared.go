@@ -37,6 +37,18 @@ const (
 	CMD_CONFIGURE_FPGA_BLOCK = uint8(0x16)
 	CMD_CONFIGURE_FPGA_START = uint8(0x17)
 
+	CMD_RESERVATION       = uint8(0x18)
+	CMD_RESETVATION_RESET = uint8(0x19)
+
+	FLAG_RESERVATION_RESET       uint32 = (1 << 25)
+	FLAG_RESERVATION_WRITE       uint32 = (1 << 24) | (1 << 23)
+	FLAG_RESERVATION_WRITE_SHIFT        = 23
+	FLAG_RESERVATION_PI                 = 0x1
+	FLAG_RESERVATION_USB                = 0x2
+
+	FLAG_RESERVATION_READ       uint32 = (1 << 23) | (1 << 22)
+	FLAG_RESERVATION_READ_SHIFT        = 22
+
 	CMD_DO_POW = uint8(0x20)
 
 	FLASH_SIZE         = (1024 * 1024) // 8MBit SPI Flash
