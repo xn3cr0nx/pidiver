@@ -26,13 +26,14 @@ func main() {
 		ConfigFile:     *configFile,
 		ForceFlash:     false,
 		ForceConfigure: false,
-		UseCRC:         true}
+		UseCRC:         true,
+		UseSharedLock:  true}
 
 	var powFuncs []giota.PowFunc
 	var err error
 	if *diver == "usbdiver" {
-		usb := pidiver.USBDiver{}
-		err = usb.InitUSBDiver(&config)
+		usb := pidiver.USBDiver{Config: &config}
+		err = usb.InitUSBDiver()
 		powFuncs = append(powFuncs, usb.PowUSBDiver)
 	} else {
 		raspi := pidiver.PiDiver{LLStruct: raspberry.GetLowLevel(), Config: &config}
@@ -43,7 +44,7 @@ func main() {
 		log.Fatal(err)
 	}
 	channel := make(chan giota.Trytes, 100)
-	for worker := 0; worker < 2; worker++ {
+	for worker := 0; worker < len(powFuncs); worker++ {
 		go func(id int, mwm int, channel chan giota.Trytes) {
 			for {
 				trytes, more := <-channel

@@ -2,6 +2,7 @@ package pidiver
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"time"
 	"unsafe"
@@ -22,11 +23,11 @@ type LLStruct struct {
 }
 
 type PiDiver struct {
-	LLStruct LLStruct
-	Config   *PiDiverConfig
-	parallel uint32
-	versionMajor uint32
-	versionMinor uint32
+	LLStruct     LLStruct
+	Config       *PiDiverConfig
+	parallel     uint32
+	VersionMajor uint32
+	VersionMinor uint32
 }
 
 func (p *PiDiver) send(data uint32) error {
@@ -49,9 +50,9 @@ func (p *PiDiver) InitPiDiver() error {
 		return err
 	}
 
-	p.versionMajor, p.versionMinor, err = p.readFPGAVersion()
-	log.Printf("FPGA version: %d.%d\n", p.versionMajor, p.versionMinor)
-    
+	p.VersionMajor, p.VersionMinor, err = p.readFPGAVersion()
+	log.Printf("FPGA version: %d.%d\n", p.VersionMajor, p.VersionMinor)
+
 	p.parallel, err = p.readParallelLevel()
 	if err != nil {
 		return err
@@ -60,6 +61,10 @@ func (p *PiDiver) InitPiDiver() error {
 
 	initTryteMap()
 	return nil
+}
+
+func (p *PiDiver) GetCoreVersion() string {
+	return fmt.Sprintf("%v.%v", p.VersionMajor, p.VersionMinor)
 }
 
 // start PoW
@@ -221,7 +226,7 @@ func (p *PiDiver) curlInitBlock() {
 // do PoW
 func (p *PiDiver) PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	// doesn't work on ftdiver because sharing feature doesn't exist
-	if p.Config.UseSharedLock && p.versionMajor == 1 && p.versionMinor == 1 {
+	if p.Config.UseSharedLock && p.VersionMajor == 1 && p.VersionMinor == 1 {
 		err := p.waitForReservation(5000 * time.Millisecond)
 		if err != nil {
 			p.unlockReservation()

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -20,9 +21,12 @@ const (
 )
 
 type USBDiver struct {
-	instance int
-	port     io.ReadWriteCloser
-	id       uint8
+	Config       *PiDiverConfig
+	instance     int
+	port         io.ReadWriteCloser
+	id           uint8
+	VersionMajor uint32
+	VersionMinor uint32
 }
 
 type Com struct {
@@ -165,7 +169,7 @@ func (u *USBDiver) fpgaReadStatus() (Status, error) {
 	return status, nil
 }
 
-func (u *USBDiver) getVersion() (Version, error) {
+func (u *USBDiver) usbGetVersion() (Version, error) {
 	com := Com{Cmd: CMD_GET_VERSION, Length: 1}
 	if _, err := u.usbRequest(&com, 1000); err != nil {
 		return Version{}, err
@@ -177,6 +181,10 @@ func (u *USBDiver) getVersion() (Version, error) {
 	}
 
 	return version, nil
+}
+
+func (u *USBDiver) GetVersion() string {
+	return fmt.Sprintf("%v.%v", u.VersionMajor, u.VersionMinor)
 }
 
 func (u *USBDiver) flashSetPage(page uint32) error {
@@ -416,9 +424,9 @@ func (u *USBDiver) loopTest() error {
 	return err
 }
 
-func (u *USBDiver) InitUSBDiver(config *PiDiverConfig) error {
+func (u *USBDiver) InitUSBDiver() error {
 	// baud rate has no effect when using USB-CDC
-	c0 := &serial.Config{Name: config.Device, Baud: 115200, ReadTimeout: time.Millisecond * 500}
+	c0 := &serial.Config{Name: u.Config.Device, Baud: 115200, ReadTimeout: time.Millisecond * 500}
 
 	var err error
 	u.port, err = serial.OpenPort(c0)
@@ -426,11 +434,15 @@ func (u *USBDiver) InitUSBDiver(config *PiDiverConfig) error {
 		log.Fatal(err)
 	}
 
-	/*	version, err := getVersion()
-		if err != nil {
-			return err
-		}
-	*/
+	version, err := u.usbGetVersion()
+	if err != nil {
+		return err
+	}
+	u.VersionMajor = version.Major
+	u.VersionMinor = version.Minor
+
+	log.Printf("USBDiver version: %v.%v\n", u.VersionMajor, u.VersionMinor)
+
 	var status Status
 	status, err = u.fpgaReadStatus()
 	if err != nil {
@@ -439,9 +451,9 @@ func (u *USBDiver) InitUSBDiver(config *PiDiverConfig) error {
 
 	if true /*version.Major == 1 && version.Minor == 0*/ {
 		// doesn't have flash
-		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
+		if u.Config.ForceConfigure || status.IsFPGAConfigured == 0 {
 			log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
-			err = u.fpgaConfigureUpload(config.ConfigFile)
+			err = u.fpgaConfigureUpload(u.Config.ConfigFile)
 			if err != nil {
 				log.Fatal("error configuring fpga")
 			}
