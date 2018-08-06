@@ -37,18 +37,6 @@ const (
 	CMD_CONFIGURE_FPGA_BLOCK = uint8(0x16)
 	CMD_CONFIGURE_FPGA_START = uint8(0x17)
 
-	CMD_RESERVATION       = uint8(0x18)
-	CMD_RESETVATION_RESET = uint8(0x19)
-
-	FLAG_RESERVATION_RESET       uint32 = (1 << 25)
-	FLAG_RESERVATION_WRITE       uint32 = (1 << 24) | (1 << 23)
-	FLAG_RESERVATION_WRITE_SHIFT        = 23
-	FLAG_RESERVATION_PI                 = 0x1
-	FLAG_RESERVATION_USB                = 0x2
-
-	FLAG_RESERVATION_READ       uint32 = (1 << 23) | (1 << 22)
-	FLAG_RESERVATION_READ_SHIFT        = 22
-
 	CMD_DO_POW = uint8(0x20)
 
 	FLASH_SIZE         = (1024 * 1024) // 8MBit SPI Flash
@@ -64,6 +52,16 @@ const (
 	FLAG_CURL_RESET   uint32 = (1 << 1)
 	FLAG_CURL_WRITE   uint32 = (1 << 2)
 	FLAG_CURL_DO_CURL uint32 = (1 << 3)
+
+	FLAG_RESERVATION_RESET       uint32 = (1 << 25)
+	FLAG_RESERVATION_WRITE       uint32 = (1 << 24) | (1 << 23)
+	FLAG_RESERVATION_WRITE_SHIFT        = 23
+	FLAG_RESERVATION_PI                 = 0x1
+	FLAG_RESERVATION_USB                = 0x2
+
+	FLAG_RESERVATION_READ       uint32 = (1 << 23) | (1 << 22)
+	FLAG_RESERVATION_READ_SHIFT        = 22
+
 
 	CMD_NOP                        uint32 = 0x00000000
 	CMD_WRITE_FLAGS                uint32 = 0x04000000
@@ -105,6 +103,15 @@ const (
 	BCM2835_SPI_CLOCK_DIVIDER_2     uint16 = 2     ///< 2 = 8ns = 125MHz, fastest you can get
 	BCM2835_SPI_CLOCK_DIVIDER_1     uint16 = 1     ///< 0 = 262.144us = 3.814697260kHz, same as 0/65536
 )
+
+type PiDiverConfig struct {
+	Device         string
+	ConfigFile     string
+	ForceFlash     bool
+	ForceConfigure bool
+	UseCRC         bool
+	UseSharedLock  bool	// pidiver/usbdiver sharing lock
+}
 
 var crctab = []uint32{
 	0x00000000,
@@ -285,7 +292,7 @@ func assembleNonce(nonce uint32, mask uint32, parallel uint32) (giota.Trytes, er
 	// log2(parallel)
 	log2 := 0
 	for i := 0; i < 32; i++ {
-		if (parallel & (1 << uint32(i))) != 0 {
+		if ((parallel - 1) & (1 << uint32(i))) != 0 {
 			log2 = i
 		}
 	}

@@ -19,11 +19,10 @@ const (
 	MAX_DATA_LENGTH = 8192
 )
 
-type PiDiverConfig struct {
-	Device         string
-	ConfigFile     string
-	ForceFlash     bool
-	ForceConfigure bool
+type USBDiver struct {
+	instance int
+	port     io.ReadWriteCloser
+	id       uint8
 }
 
 type Com struct {
@@ -67,17 +66,9 @@ type Version struct {
 	Minor uint32 `struc:"uint32,little"`
 }
 
-type Reservation struct {
-	Timeout uint32 `struc:"uint32,little"`
-	Result  uint32 `struc:"uint32,little"`
-}
-
-var port io.ReadWriteCloser
-var id = uint8(0)
-
-func usbRequest(com *Com, timeout int64) (*Com, error) {
-	id++
-	com.Id = id
+func (u *USBDiver) usbRequest(com *Com, timeout int64) (*Com, error) {
+	u.id++
+	com.Id = u.id
 
 	if com.Length > MAX_DATA_LENGTH {
 		return &Com{}, errors.New("MAX_DATA_LENGTH exceeded")
@@ -92,7 +83,7 @@ func usbRequest(com *Com, timeout int64) (*Com, error) {
 		return &Com{}, errors.New("Error packing struct")
 	}
 	toWrite := 5 + int(com.Length)
-	written, err := port.Write(buf.Bytes()[0:toWrite])
+	written, err := u.port.Write(buf.Bytes()[0:toWrite])
 	//	log.Printf("% X\n", buf.Bytes()[0:toWrite])
 
 	if written != toWrite {
@@ -108,7 +99,7 @@ func usbRequest(com *Com, timeout int64) (*Com, error) {
 			return &Com{}, errors.New("Read Timeout")
 		}
 		response := make([]byte, 128)
-		n, err := port.Read(response)
+		n, err := u.port.Read(response)
 		/*		if err != nil {
 				return &Com{}, errors.New("Error reading USB device")
 			}*/
@@ -160,9 +151,9 @@ func usbRequest(com *Com, timeout int64) (*Com, error) {
 
 }
 
-func fpgaReadStatus() (Status, error) {
+func (u *USBDiver) fpgaReadStatus() (Status, error) {
 	com := Com{Cmd: CMD_READ_STATUS, Length: 1}
-	if _, err := usbRequest(&com, 1000); err != nil {
+	if _, err := u.usbRequest(&com, 1000); err != nil {
 		return Status{}, err
 	}
 
@@ -174,9 +165,9 @@ func fpgaReadStatus() (Status, error) {
 	return status, nil
 }
 
-func getVersion() (Version, error) {
+func (u *USBDiver) getVersion() (Version, error) {
 	com := Com{Cmd: CMD_GET_VERSION, Length: 1}
-	if _, err := usbRequest(&com, 1000); err != nil {
+	if _, err := u.usbRequest(&com, 1000); err != nil {
 		return Version{}, err
 	}
 
@@ -188,56 +179,56 @@ func getVersion() (Version, error) {
 	return version, nil
 }
 
-func flashSetPage(page uint32) error {
+func (u *USBDiver) flashSetPage(page uint32) error {
 	com := Com{Cmd: CMD_SET_PAGE, Length: 4}
 	com.Data[0] = uint8(page & 0x000000ff)
 	com.Data[1] = uint8(page & 0x0000ff00 >> 8)
 	com.Data[2] = uint8(page & 0x00ff0000 >> 16)
 	com.Data[3] = uint8(page & 0xff000000 >> 24)
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	return err
 }
 
-func fpgaConfigure() error {
+func (u *USBDiver) fpgaConfigure() error {
 	com := Com{Cmd: CMD_CONFIGURE_FPGA, Length: 1}
-	_, err := usbRequest(&com, 40000)
+	_, err := u.usbRequest(&com, 40000)
 	return err
 }
 
-func fpgaIsConfigured() (bool, error) {
-	status, err := fpgaReadStatus()
+func (u *USBDiver) fpgaIsConfigured() (bool, error) {
+	status, err := u.fpgaReadStatus()
 	if err != nil {
 		return false, err
 	}
 	return (status.IsFPGAConfigured != 0), nil
 }
 
-func flashWritePageNumber(page uint32, data []uint8) error {
-	err := flashSetPage(page)
+func (u *USBDiver) flashWritePageNumber(page uint32, data []uint8) error {
+	err := u.flashSetPage(page)
 	if err != nil {
 		return err
 	}
-	return flashWritePage(data)
+	return u.flashWritePage(data)
 }
 
-func flashReadPageNumber(page uint32) ([]uint8, error) {
-	err := flashSetPage(page)
+func (u *USBDiver) flashReadPageNumber(page uint32) ([]uint8, error) {
+	err := u.flashSetPage(page)
 	if err != nil {
 		return []uint8{}, err
 	}
-	return flashReadPage()
+	return u.flashReadPage()
 }
 
-func flashWritePage(data []uint8) error {
+func (u *USBDiver) flashWritePage(data []uint8) error {
 	com := Com{Cmd: CMD_WRITE_PAGE, Length: FLASH_SPI_PAGESIZE}
 	copy(com.Data[0:], data[0:]) // data can be shorted than FLASH_SPI_PAGESIZE])
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	return err
 }
 
-func flashReadPage() ([]uint8, error) {
+func (u *USBDiver) flashReadPage() ([]uint8, error) {
 	com := Com{Cmd: CMD_READ_PAGE, Length: FLASH_SPI_PAGESIZE}
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	if err != nil {
 		return []uint8{}, err
 	}
@@ -248,14 +239,14 @@ func flashReadPage() ([]uint8, error) {
 	return data, nil
 }
 
-func flashErase() error {
+func (u *USBDiver) flashErase() error {
 	com := Com{Cmd: CMD_FLASH_ERASE, Length: 1}
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	return err
 }
 
-func flashReadMeta() (Meta, error) {
-	data, err := flashReadPageNumber(FLASH_META_PAGE)
+func (u *USBDiver) flashReadMeta() (Meta, error) {
+	data, err := u.flashReadPageNumber(FLASH_META_PAGE)
 	if err != nil {
 		return Meta{}, err
 	}
@@ -267,56 +258,30 @@ func flashReadMeta() (Meta, error) {
 	return meta, nil
 }
 
-func flashWriteMeta(meta *Meta) error {
+func (u *USBDiver) flashWriteMeta(meta *Meta) error {
 	var buf bytes.Buffer
 	err := struc.Pack(&buf, meta)
 	if err != nil {
 		return err
 	}
-	err = flashWritePageNumber(FLASH_META_PAGE, buf.Bytes())
+	err = u.flashWritePageNumber(FLASH_META_PAGE, buf.Bytes())
 	return err
 }
 
-func fpgaConfigureStart() error {
+func (u *USBDiver) fpgaConfigureStart() error {
 	com := Com{Cmd: CMD_CONFIGURE_FPGA_START, Length: 1}
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	return err
 }
 
-func fpgaConfigureBlock(data []uint8, l uint16) error {
+func (u *USBDiver) fpgaConfigureBlock(data []uint8, l uint16) error {
 	com := Com{Cmd: CMD_CONFIGURE_FPGA_BLOCK, Length: l}
 	copy(com.Data[0:l], data[0:l]) // data can be shorted than FLASH_SPI_PAGESIZE])
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	return err
 }
 
-/*
-func usbUnlockReservation() error {
-	com := Com{Cmd: CMD_RESETVATION_RESET, Length: 1}
-	_, err := usbRequest(&com, 1000)
-	return err
-}
-
-func usbWaitForReservation(timeout time.Duration) error {
-	com := Com{Cmd: CMD_RESERVATION, Length: 8}
-	reservation := Reservation{Timeout: uint32(timeout / time.Millisecond), Result: 0}
-	var buf bytes.Buffer
-	err := struc.Pack(&buf, reservation)
-	copy(com.Data[0:8], buf.Bytes()[0:8])
-	_, err = usbRequest(&com, 6000)
-	if err != nil {
-		return err
-	}
-
-	err = struc.Unpack(bytes.NewReader(com.Data[0:com.Length]), &reservation)
-	if err != nil || reservation.Result != 1 {
-		return err
-	}
-
-	return err
-}
-*/
-func fpgaConfigureUpload(filename string) error {
+func (u *USBDiver) fpgaConfigureUpload(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -339,7 +304,7 @@ func fpgaConfigureUpload(filename string) error {
 		return err
 	}
 
-	err = fpgaConfigureStart()
+	err = u.fpgaConfigureStart()
 	if err != nil {
 		return err
 	}
@@ -350,7 +315,7 @@ func fpgaConfigureUpload(filename string) error {
 	for toFlash > 0 {
 		chunk = min(toFlash, 8192)
 		log.Printf("configuring %d%%\n", int(float32(offset)/float32(size)*100))
-		err = fpgaConfigureBlock(data[offset:offset+chunk], uint16(chunk))
+		err = u.fpgaConfigureBlock(data[offset:offset+chunk], uint16(chunk))
 
 		toFlash -= chunk
 		offset += chunk
@@ -359,7 +324,7 @@ func fpgaConfigureUpload(filename string) error {
 	return nil
 }
 
-func flashUpload(filename string) error {
+func (u *USBDiver) flashUpload(filename string) error {
 	f, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -388,7 +353,7 @@ func flashUpload(filename string) error {
 		return err
 	}
 	log.Printf("erasing flash ...")
-	err = flashErase()
+	err = u.flashErase()
 	if err != nil {
 		return err
 	}
@@ -400,7 +365,7 @@ func flashUpload(filename string) error {
 			log.Printf("%d%% flashed ...\n", int(float32(page)/float32(size/FLASH_SPI_PAGESIZE)*100.0))
 		}
 		// TODO?
-		err := flashWritePageNumber(page, data[page*FLASH_SPI_PAGESIZE:(page+1)*FLASH_SPI_PAGESIZE])
+		err := u.flashWritePageNumber(page, data[page*FLASH_SPI_PAGESIZE:(page+1)*FLASH_SPI_PAGESIZE])
 		if err != nil {
 			return err
 		}
@@ -412,7 +377,7 @@ func flashUpload(filename string) error {
 			log.Printf("%d%% veryfied ...\n", int(float32(page)/float32(size/FLASH_SPI_PAGESIZE)*100.0))
 		}
 		var read []uint8
-		read, err = flashReadPageNumber(page)
+		read, err = u.flashReadPageNumber(page)
 		if !bytes.Equal(read[:], data[page*FLASH_SPI_PAGESIZE:(page+1)*FLASH_SPI_PAGESIZE]) {
 			return errors.New("verify error at page " + string(page))
 		}
@@ -424,13 +389,13 @@ func flashUpload(filename string) error {
 	meta.Filesize = originalSize
 
 	log.Printf("flashing meta-page ...")
-	err = flashWriteMeta(&meta)
+	err = u.flashWriteMeta(&meta)
 	if err != nil {
 		return err
 	}
 
 	var verifyMeta Meta
-	verifyMeta, err = flashReadMeta()
+	verifyMeta, err = u.flashReadMeta()
 
 	if !reflect.DeepEqual(meta, verifyMeta) {
 		return errors.New("meta verification failed")
@@ -438,10 +403,10 @@ func flashUpload(filename string) error {
 	return nil
 }
 
-func loopTest() error {
+func (u *USBDiver) loopTest() error {
 	com := Com{Cmd: 0xaa, Length: 8192}
 	start := makeTimestamp()
-	_, err := usbRequest(&com, 1000)
+	_, err := u.usbRequest(&com, 1000)
 	end := makeTimestamp()
 	log.Printf("time %dms\n", (end - start))
 
@@ -451,12 +416,12 @@ func loopTest() error {
 	return err
 }
 
-func InitUSBDiver(config *PiDiverConfig) error {
+func (u *USBDiver) InitUSBDiver(config *PiDiverConfig) error {
 	// baud rate has no effect when using USB-CDC
 	c0 := &serial.Config{Name: config.Device, Baud: 115200, ReadTimeout: time.Millisecond * 500}
 
 	var err error
-	port, err = serial.OpenPort(c0)
+	u.port, err = serial.OpenPort(c0)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -467,7 +432,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 		}
 	*/
 	var status Status
-	status, err = fpgaReadStatus()
+	status, err = u.fpgaReadStatus()
 	if err != nil {
 		return err
 	}
@@ -476,7 +441,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 		// doesn't have flash
 		if config.ForceConfigure || status.IsFPGAConfigured == 0 {
 			log.Printf("fpga not configured (or configuring forced). configuring ... (10-40sec)")
-			err = fpgaConfigureUpload(config.ConfigFile)
+			err = u.fpgaConfigureUpload(config.ConfigFile)
 			if err != nil {
 				log.Fatal("error configuring fpga")
 			}
@@ -509,7 +474,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 		}
 	}*/
 
-	status, err = fpgaReadStatus()
+	status, err = u.fpgaReadStatus()
 
 	if status.IsFPGAConfigured == 0 {
 		log.Fatal("fpga not configured!")
@@ -522,7 +487,7 @@ func InitUSBDiver(config *PiDiverConfig) error {
 }
 
 // do PoW
-func PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+func (u *USBDiver) PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	// do mid-state-calculation on FPGA
 	//	var start int64 = makeTimestamp()
 
@@ -541,8 +506,8 @@ func PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	}
 	copy(com.Data[0:], tmpBuffer.Bytes())
 
-	com.Length = 3700                // (891 + 33 + 1) * 4
-	_, err = usbRequest(&com, 10000) // 10sec enough?
+	com.Length = 3700                  // (891 + 33 + 1) * 4
+	_, err = u.usbRequest(&com, 10000) // 10sec enough?
 	if err != nil {
 		return giota.Trytes(""), err
 	}

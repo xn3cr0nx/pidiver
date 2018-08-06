@@ -9,10 +9,6 @@ import (
 	"github.com/iotaledger/giota"
 )
 
-var parallel uint32
-var versionMinor uint32
-var versionMajor uint32
-
 type LLInitFunc func(config *PiDiverConfig) error
 type LLSPISendFunc func(data uint32) error
 type LLSPISendBlockFunc func(data []uint32) error
@@ -25,119 +21,123 @@ type LLStruct struct {
 	LLSPISendBlock   LLSPISendBlockFunc
 }
 
-var llStruct *LLStruct
+type PiDiver struct {
+	LLStruct LLStruct
+	Config   *PiDiverConfig
+	parallel uint32
+	versionMajor uint32
+	versionMinor uint32
+}
 
-func send(data uint32) error {
-	return llStruct.LLSPISend(data)
+func (p *PiDiver) send(data uint32) error {
+	return p.LLStruct.LLSPISend(data)
 }
 
 // send block of data for midstate
-func sendBlock(data []uint32) error {
-	return llStruct.LLSPISendBlock(data)
+func (p *PiDiver) sendBlock(data []uint32) error {
+	return p.LLStruct.LLSPISendBlock(data)
 }
 
 // send and receive
-func sendReceive(cmd uint32) (uint32, error) {
-	return llStruct.LLSPISendReceive(cmd)
+func (p *PiDiver) sendReceive(cmd uint32) (uint32, error) {
+	return p.LLStruct.LLSPISendReceive(cmd)
 }
 
-func InitPiDiver(ll *LLStruct, config *PiDiverConfig) error {
-	llStruct = ll
-
-	err := llStruct.LLInit(config)
+func (p *PiDiver) InitPiDiver() error {
+	err := p.LLStruct.LLInit(p.Config)
 	if err != nil {
 		return err
 	}
 
-	versionMajor, versionMinor, err = readFPGAVersion()
-	log.Printf("FPGA version: %d.%d\n", versionMajor, versionMinor)
-
-	parallel, err = readParallelLevel()
+	p.versionMajor, p.versionMinor, err = p.readFPGAVersion()
+	log.Printf("FPGA version: %d.%d\n", p.versionMajor, p.versionMinor)
+    
+	p.parallel, err = p.readParallelLevel()
 	if err != nil {
 		return err
 	}
-	log.Printf("Parallel Level Detected: %d\n", parallel)
+	log.Printf("Parallel Level Detected: %d\n", p.parallel)
 
 	initTryteMap()
 	return nil
 }
 
 // start PoW
-func startPow() error {
-	return send(CMD_WRITE_FLAGS | FLAG_START)
+func (p *PiDiver) startPow() error {
+	return p.send(CMD_WRITE_FLAGS | FLAG_START)
 }
 
 // reset write pointer on FPGA
-func resetWritePointer() error {
-	return send(CMD_RESET_WRPTR)
+func (p *PiDiver) resetWritePointer() error {
+	return p.send(CMD_RESET_WRPTR)
 }
 
 // not used ... faster version with tables is used
-func writeData(tritshi uint32, tritslo uint32) error {
+func (p *PiDiver) writeData(tritshi uint32, tritslo uint32) error {
 	cmd := CMD_WRITE_DATA
 
 	cmd |= tritslo & 0x000001ff
 	cmd |= (tritshi & 0x000001ff) << 9
 
-	return send(cmd)
+	return p.send(cmd)
 }
 
 // read parallel level of FPGA
-func readParallelLevel() (uint32, error) {
-	val, err := sendReceive(CMD_READ_FLAGS)
+func (p *PiDiver) readParallelLevel() (uint32, error) {
+	val, err := p.sendReceive(CMD_READ_FLAGS)
 	return (val & 0x000000f0) >> 4, err
 }
 
 // read binary nonce
-func readBinaryNonce() (uint32, error) {
-	return sendReceive(CMD_READ_NONCE)
+func (p *PiDiver) readBinaryNonce() (uint32, error) {
+	return p.sendReceive(CMD_READ_NONCE)
 }
 
 // red CRC32
-func readCRC32() (uint32, error) {
-	return sendReceive(CMD_READ_CRC32)
+func (p *PiDiver) readCRC32() (uint32, error) {
+	return p.sendReceive(CMD_READ_CRC32)
 }
 
-func writeMinWeightMagnitude(bits uint32) {
+func (p *PiDiver) writeMinWeightMagnitude(bits uint32) {
 	if bits > 26 {
 		bits = 26
 	}
-	send(CMD_WRITE_MIN_WEIGHT_MAGNITUDE | ((1 << bits) - 1))
+	p.send(CMD_WRITE_MIN_WEIGHT_MAGNITUDE | ((1 << bits) - 1))
 }
 
 // get Mask
-func getMask() (uint32, error) {
-	val, err := sendReceive(CMD_READ_FLAGS)
-	return ((val >> 8) & ((1 << parallel) - 1)), err
+func (p *PiDiver) getMask() (uint32, error) {
+	val, err := p.sendReceive(CMD_READ_FLAGS)
+	return ((val >> 8) & ((1 << p.parallel) - 1)), err
 }
 
 // get Flags
-func getFlags() (uint32, error) {
-	val, err := sendReceive(CMD_READ_FLAGS)
+func (p *PiDiver) getFlags() (uint32, error) {
+	val, err := p.sendReceive(CMD_READ_FLAGS)
 	return (val & 0x0000000f), err
 }
 
-func unlockReservation() error {
-	return send(CMD_WRITE_FLAGS | FLAG_RESERVATION_RESET)
+func (p *PiDiver) unlockReservation() error {
+	return p.send(CMD_WRITE_FLAGS | FLAG_RESERVATION_RESET)
 }
 
-func readFPGAVersion() (uint32, uint32, error) {
-	val, err := sendReceive(CMD_READ_FLAGS)
+func (p *PiDiver) readFPGAVersion() (uint32, uint32, error) {
+	val, err := p.sendReceive(CMD_READ_FLAGS)
 	minor := (val >> 24) & 0xf
 	major := (val >> 28) & 0xf
 	return major, minor, err
 }
 
-func waitForReservation(timeout time.Duration) error {
+func (p *PiDiver) waitForReservation(timeout time.Duration) error {
 	start := time.Now()
 	for {
 		// make reservation
-		err := send(CMD_WRITE_FLAGS | (FLAG_RESERVATION_PI << FLAG_RESERVATION_WRITE_SHIFT))
+		err := p.send(CMD_WRITE_FLAGS | (FLAG_RESERVATION_PI << FLAG_RESERVATION_WRITE_SHIFT))
 		if err != nil {
 			return err
 		}
 		// got device?
-		flags, err := sendReceive(CMD_READ_FLAGS)
+		flags, err := p.sendReceive(CMD_READ_FLAGS)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func waitForReservation(timeout time.Duration) error {
 }
 
 // send trytes for midstate calculation and check for transmission errors
-func sendTritData(trytes string) error {
+func (p *PiDiver) sendTritData(trytes string) error {
 	uint32Data := make([]uint32, HASH_LENGTH/DATA_WIDTH)
 	verifyData := make([]uint32, HASH_LENGTH/DATA_WIDTH)
 	for tries := 1; ; tries++ {
@@ -163,24 +163,30 @@ func sendTritData(trytes string) error {
 			uint32Data[i] = tryteMap[key]
 			verifyData[i] = (swapBytes(uint32Data[i]) & 0xffff0300) | (uint32(i)&0x3f)<<10 | (uint32(i)&0xc0)>>6
 		}
-		resetWritePointer()
-		sendBlock(uint32Data)
-		verifyBytes := *(*[HASH_LENGTH / DATA_WIDTH * 4]byte)(unsafe.Pointer(&verifyData[0]))
+		p.resetWritePointer()
+		p.sendBlock(uint32Data)
 
-		crc32Verify := crc(verifyBytes[:], len(verifyBytes))
-		crc32, err := readCRC32()
-		if err != nil {
-			return err
-		}
-		//		log.Printf("CRC32: %08x\n", crc32)
-		//		log.Printf("CRC32 Verify: %08x\n", crc32Verify)
+		if p.Config.UseCRC {
+			verifyBytes := *(*[HASH_LENGTH / DATA_WIDTH * 4]byte)(unsafe.Pointer(&verifyData[0]))
 
-		if crc32Verify != crc32 {
-			log.Printf("Transfer Error (%d/10).\n", tries)
-			if tries == 11 {
-				return errors.New("CRC32 error - giving up ...")
+			crc32Verify := crc(verifyBytes[:], len(verifyBytes))
+			crc32, err := p.readCRC32()
+			if err != nil {
+				return err
 			}
-			continue
+			//		log.Printf("CRC32: %08x\n", crc32)
+			//		log.Printf("CRC32 Verify: %08x\n", crc32Verify)
+
+			if crc32Verify != crc32 {
+				return errors.New("CRC error")
+				/*				log.Printf("Transfer Error (%d/10).\n", tries)
+								if tries == 11 {
+									return errors.New("CRC32 error - giving up ...")
+								}
+								continue*/
+			} else {
+				break
+			}
 		} else {
 			break
 		}
@@ -189,18 +195,18 @@ func sendTritData(trytes string) error {
 }
 
 // send block for midstate calculation
-func curlSendBlock(trytes string, doCurl bool) error {
-	if err := sendTritData(trytes); err != nil {
+func (p *PiDiver) curlSendBlock(trytes string, doCurl bool) error {
+	if err := p.sendTritData(trytes); err != nil {
 		return err
 	}
 	cmd := CMD_WRITE_FLAGS | FLAG_CURL_WRITE
 	if doCurl {
 		cmd |= FLAG_CURL_DO_CURL
 	}
-	send(cmd)
+	p.send(cmd)
 
 	// instantly read back ... curl needs <1µs on fpga and spi is slower
-	flags, err := getFlags()
+	flags, err := p.getFlags()
 	if flags&FLAG_CURL_FINISHED == 0 || err != nil {
 		return errors.New("Curl didn't finish")
 	}
@@ -208,47 +214,48 @@ func curlSendBlock(trytes string, doCurl bool) error {
 }
 
 // setup fpga for midstate calculation
-func curlInitBlock() {
-	send(CMD_WRITE_FLAGS | FLAG_CURL_RESET)
+func (p *PiDiver) curlInitBlock() {
+	p.send(CMD_WRITE_FLAGS | FLAG_CURL_RESET)
 }
 
 // do PoW
-func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
-	if versionMajor == 1 && versionMinor == 1 {
-		err := waitForReservation(5000 * time.Millisecond)
+func (p *PiDiver) PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+	// doesn't work on ftdiver because sharing feature doesn't exist
+	if p.Config.UseSharedLock && p.versionMajor == 1 && p.versionMinor == 1 {
+		err := p.waitForReservation(5000 * time.Millisecond)
 		if err != nil {
-			unlockReservation()
-			err := waitForReservation(5000 * time.Millisecond)
+			p.unlockReservation()
+			err := p.waitForReservation(5000 * time.Millisecond)
 			if err != nil {
 				return "", err
 			}
 		}
+		defer p.unlockReservation()
 	}
-	defer unlockReservation()
 
 	// do mid-state-calculation on FPGA
 	midStateStart := makeTimestamp()
-	curlInitBlock()
+	p.curlInitBlock()
 	for blocknr := 0; blocknr < 33; blocknr++ {
 		doCurl := true
 		if blocknr == 32 {
 			doCurl = false
 		}
-		if err := curlSendBlock(string(trytes)[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
+		if err := p.curlSendBlock(string(trytes)[blocknr*(HASH_LENGTH/3):(blocknr+1)*(HASH_LENGTH/3)], doCurl); err != nil {
 			return "", err
 		}
 	}
 	midStateEnd := makeTimestamp()
 
 	// write min weight magnitude
-	writeMinWeightMagnitude(uint32(minWeight))
+	p.writeMinWeightMagnitude(uint32(minWeight))
 
 	// start PoW
-	startPow()
+	p.startPow()
 
 	powStart := makeTimestamp()
 	for {
-		flags, err := getFlags()
+		flags, err := p.getFlags()
 		if err != nil {
 			return giota.Trytes(""), err
 		}
@@ -260,14 +267,14 @@ func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 	}
 	powEnd := makeTimestamp()
 
-	binary_nonce, err := readBinaryNonce()
+	binary_nonce, err := p.readBinaryNonce()
 	if err != nil {
 		return giota.Trytes(""), err
 	}
 	binary_nonce -= 2 // -2 because of pipelining for speed on FPGA
-	mask, err := getMask()
+	mask, err := p.getMask()
 	log.Printf("Found nonce: %08x (mask: %08x)\n", binary_nonce, mask)
 	log.Printf("PoW-Time: %dms\n", (powEnd-powStart)+(midStateEnd-midStateStart))
 
-	return assembleNonce(binary_nonce, mask, parallel)
+	return assembleNonce(binary_nonce, mask, p.parallel)
 }
