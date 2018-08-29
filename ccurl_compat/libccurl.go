@@ -8,7 +8,7 @@ import (
 )
 
 var device = "/dev/ttyACM0"
-var configFile = "/tmp/pidiver1.0.rbf"
+var configFile = "./pidiver1.1.rbf"
 var forceFlash = false
 var forceConfigure = false
 
@@ -22,8 +22,11 @@ var initialized = false
 
 //export ccurl_pow
 func ccurl_pow(trytes *C.char, mwm uint) *C.char {
+    var usb pidiver.USBDiver
+    var err error
 	if !initialized {
-		err := pidiver.InitUSBDiver(&config)
+		usb = pidiver.USBDiver{Config: &config}
+		err = usb.InitUSBDiver()
 		if err != nil {
 			println("error initializing usbdiver!")
 			return nil
@@ -32,7 +35,7 @@ func ccurl_pow(trytes *C.char, mwm uint) *C.char {
 	}
 	goTrytes := C.GoString(trytes)
 
-	nonce, err := pidiver.PowUSBDiver(giota.Trytes(goTrytes), int(mwm))
+	nonce, err := usb.PowUSBDiver(giota.Trytes(goTrytes), int(mwm))
 	if err != nil {
 		println("error pow!")
 		return nil
