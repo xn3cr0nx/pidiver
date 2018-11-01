@@ -34,7 +34,7 @@ func (u *PoWChipDiver) PowPoWChipDiver(trytes trinary.Trytes, minWeight int) (tr
 	copy(com.Data[0:], tmpBuffer.Bytes())
 
 	com.Length = 3700                           // (891 + 33 + 1) * 4
-	_, err = u.USBDiver.usbRequest(&com, 10000) // 10sec enough?
+	_, err = u.USBDiver.usbRequest(&com, 60000) // 10sec enough?
 	if err != nil {
 		return trinary.Trytes(""), err
 	}

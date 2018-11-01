@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/iotaledger/iota.go/pow"
 	"github.com/spf13/viper"
 )
 
@@ -35,6 +36,12 @@ var authEnabled = false
 var dummyHash = strings.Repeat("9", 81)
 var apiCalls = make(map[string]func(request Request, c *gin.Context, t time.Time))
 var startModules []func(apiConfig *viper.Viper)
+
+var powFuncs []pow.PowFunc
+
+func SetPoWFunc(funcs []pow.PowFunc) {
+	powFuncs = funcs
+}
 
 // TODO: Add attach/interrupt attaching api
 // TODO: limit requests, lists, etc.

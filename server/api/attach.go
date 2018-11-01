@@ -15,7 +15,7 @@ import (
 	"github.com/iotaledger/iota.go/curl"
 	"github.com/iotaledger/iota.go/pow"
 	"github.com/iotaledger/iota.go/trinary"
-	pidiver "github.com/shufps/pidiver"
+
 	"github.com/spf13/viper"
 )
 
@@ -39,7 +39,6 @@ const (
 var mutex = &sync.Mutex{}
 var maxMinWeightMagnitude = 0
 var maxTransactions = 0
-var usePiDiver bool = false
 var interruptAttachToTangle = false
 
 // Int2Trits converts int64 to trits.
@@ -78,20 +77,9 @@ func init() {
 func startAttach(apiConfig *viper.Viper) {
 	maxMinWeightMagnitude = config.GetInt("api.pow.maxMinWeightMagnitude")
 	maxTransactions = config.GetInt("api.pow.maxTransactions")
-	usePiDiver = config.GetBool("api.pow.usePiDiver")
 
 	Log.Info("maxMinWeightMagnitude:", maxMinWeightMagnitude)
 	Log.Info("maxTransactions:", maxTransactions)
-	Log.Info("usePiDiver:", usePiDiver)
-
-	if usePiDiver {
-		err := pidiver.InitPiDiver()
-		if err != nil {
-			Log.Warning("PiDiver cannot be used. Error while initialization.")
-			usePiDiver = false
-		}
-	}
-
 }
 
 func IsValidPoW(hash trinary.Trits, mwm int) bool {
@@ -217,17 +205,10 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 		copy(runes[consts.AttachmentTimestampUpperBoundTrinaryOffset/3:], runesTimeStampUpperBoundary[:consts.AttachmentTimestampUpperBoundTrinarySize/3])
 
 		var powFunc pow.PowFunc
-		var powString string
 
 		// do pow
-		if usePiDiver {
-			Log.Info("[PoW] Using PiDiver")
-			powFunc = pidiver.PowPiDiver
-			powString = "FPGA (PiDiver)"
-		} else {
-			powString, powFunc = pow.GetBestPoW()
-		}
-		Log.Info("[PoW] Best method", powString)
+		Log.Info("[PoW] Using PiDiver")
+		powFunc = powFuncs[0]
 
 		startTime := time.Now()
 		nonceTrytes, err := powFunc(trinary.Trytes(runes), minWeightMagnitude)
@@ -241,6 +222,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 		// copy nonce to runes
 		copy(runes[consts.NonceTrinaryOffset/3:], toRunes(nonceTrytes)[:consts.NonceTrinarySize/3])
 
+		Log.Debug(string(runes))
 		verifyTrytes, err := trinary.NewTrytes(string(runes))
 		if err != nil {
 			ReplyError("Trytes got corrupted", c)
