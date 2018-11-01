@@ -7,7 +7,8 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/iotaledger/giota"
+	//	giota "github.com/iotaledger/iota.go/transaction"
+	. "github.com/iotaledger/iota.go/trinary"
 )
 
 type LLInitFunc func(config *PiDiverConfig) error
@@ -224,7 +225,7 @@ func (p *PiDiver) curlInitBlock() {
 }
 
 // do PoW
-func (p *PiDiver) PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+func (p *PiDiver) PowPiDiver(trytes Trytes, minWeight int) (Trytes, error) {
 	// doesn't work on ftdiver because sharing feature doesn't exist
 	if p.Config.UseSharedLock && p.VersionMajor == 1 && p.VersionMinor == 1 {
 		err := p.waitForReservation(5000 * time.Millisecond)
@@ -262,7 +263,7 @@ func (p *PiDiver) PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, 
 	for {
 		flags, err := p.getFlags()
 		if err != nil {
-			return giota.Trytes(""), err
+			return Trytes(""), err
 		}
 
 		if (flags&FLAG_RUNNING) == 0 && ((flags&FLAG_FOUND) != 0 || (flags&FLAG_OVERFLOW) != 0) {
@@ -274,7 +275,7 @@ func (p *PiDiver) PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, 
 
 	binary_nonce, err := p.readBinaryNonce()
 	if err != nil {
-		return giota.Trytes(""), err
+		return Trytes(""), err
 	}
 	binary_nonce -= 2 // -2 because of pipelining for speed on FPGA
 	mask, err := p.getMask()

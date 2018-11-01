@@ -3,7 +3,8 @@ package main
 import (
 	"C"
 
-	"github.com/iotaledger/giota"
+	"github.com/iotaledger/iota.go/trinary"
+	"github.com/iotaledger/iota.go/consts"
 	"github.com/shufps/pidiver/pidiver"
 )
 
@@ -35,14 +36,14 @@ func ccurl_pow(trytes *C.char, mwm uint) *C.char {
 	}
 	goTrytes := C.GoString(trytes)
 
-	nonce, err := usb.PowUSBDiver(giota.Trytes(goTrytes), int(mwm))
+	nonce, err := usb.PowUSBDiver(trinary.Trytes(goTrytes), int(mwm))
 	if err != nil {
 		println("error pow!")
 		return nil
 	}
 	println("Nonce: " + nonce)
 
-	result := goTrytes[0:giota.NonceTrinaryOffset/3] + string(nonce)[0:giota.NonceTrinarySize/3]
+	result := goTrytes[0:consts.NonceTrinaryOffset/3] + string(nonce)[0:consts.NonceTrinarySize/3]
 
 	return C.CString(result)
 }

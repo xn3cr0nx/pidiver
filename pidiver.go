@@ -4,7 +4,7 @@ import (
 	//	"fmt"
 	"encoding/binary"
 	"errors"
-	giota "github.com/iotaledger/giota"
+	"github.com/iotaledger/iota.go/trinary"
 	"github.com/shufps/bcm2835"
 	"log"
 	//"math/rand"
@@ -169,7 +169,7 @@ func InitPiDiver() error {
 		for j := 0; j < 27; j++ {
 			for k := 0; k < 27; k++ {
 				key := string(TRYTE_CHARS[i:i+1] + TRYTE_CHARS[j:j+1] + TRYTE_CHARS[k:k+1])
-				xtrits := giota.Trytes(key).Trits()
+				xtrits, _ := trinary.TrytesToTrits(key)
 				uint32Data := uint32(0)
 				tritslo := uint32(0)
 				tritshi := uint32(0)
@@ -376,7 +376,7 @@ func curlInitBlock() {
 }
 
 // do PoW
-func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+func PowPiDiver(trytes trinary.Trytes, minWeight int) (trinary.Trytes, error) {
 	// do mid-state-calculation on FPGA
 	start := time.Now()
 	curlInitBlock()
@@ -464,7 +464,8 @@ func PowPiDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
 		nonceTrits[i] = bitsToTrits(bitsHi[i], bitsLo[i])
 	}
 
-	return giota.Trits(nonceTrits).Trytes(), nil
+	rettrytes, _ := trinary.TritsToTrytes(nonceTrits)
+	return rettrytes, nil
 }
 
 /*

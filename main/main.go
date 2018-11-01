@@ -5,7 +5,10 @@ import (
 	"log"
 	"math/rand"
 
-	"github.com/iotaledger/giota"
+	"github.com/iotaledger/iota.go/consts"
+	"github.com/iotaledger/iota.go/trinary"
+	"github.com/iotaledger/iota.go/pow"
+	"github.com/iotaledger/iota.go/curl"
 	"github.com/shufps/pidiver/pidiver"
 	"github.com/shufps/pidiver/raspberry"
 	flag "github.com/spf13/pflag"
@@ -29,7 +32,7 @@ func main() {
 		UseCRC:         true,
 		UseSharedLock:  true}
 
-	var powFuncs []giota.PowFunc
+	var powFuncs []pow.PowFunc
 	var err error
 	if *diver == "usbdiver" {
 		usb := pidiver.USBDiver{Config: &config}
@@ -43,9 +46,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	channel := make(chan giota.Trytes, 100)
+	channel := make(chan trinary.Trytes, 100)
 	for worker := 0; worker < len(powFuncs); worker++ {
-		go func(id int, mwm int, channel chan giota.Trytes) {
+		go func(id int, mwm int, channel chan trinary.Trytes) {
 			for {
 				trytes, more := <-channel
 				if !more {
@@ -61,10 +64,10 @@ func main() {
 					}
 
 					// verify result ... copy nonce to transaction
-					trytes = trytes[:giota.NonceTrinaryOffset/3] + ret[0:giota.NonceTrinarySize/3]
+					trytes = trytes[:consts.NonceTrinaryOffset/3] + ret[0:consts.NonceTrinarySize/3]
 					//				println(trytes)
-					hash := trytes.Hash()
-					tritsHash := hash.Trits()
+					hash := curl.HashTrytes(trytes)
+					tritsHash, _ := trinary.TrytesToTrits(hash)
 					for i := 0; i < mwm; i++ {
 						if tritsHash[len(tritsHash)-1-i] != 0 {
 							log.Fatal("validation error")
@@ -90,7 +93,7 @@ func main() {
 		for j := 0; j < 128; j++ {
 			rndTag[j] = rune(pidiver.TRYTE_CHARS[rand.Intn(len(pidiver.TRYTE_CHARS))])
 		}
-		channel <- giota.Trytes(string(rndTag[0:128]) + tx[128:])
+		channel <- trinary.Trytes(string(rndTag[0:128]) + tx[128:])
 	}
 	close(channel)
 

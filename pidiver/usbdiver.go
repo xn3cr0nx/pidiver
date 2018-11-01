@@ -11,7 +11,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/iotaledger/giota"
+//	"github.com/iotaledger/iota.go/transaction"
+	"github.com/iotaledger/iota.go/trinary"
 	"github.com/lunixbochs/struc"
 	"github.com/tarm/goserial"
 )
@@ -52,7 +53,7 @@ type Page struct {
 	Page uint32 `struc:"uint32"`
 }
 
-type Trytes struct {
+type TrytesData struct {
 	Data  [891]uint32 `struc:"[891]uint32,little"`
 	CRC32 [33]uint32  `struc:"[33]uint32,little"`
 	MWM   uint32      `struc:"uint32,little"`
@@ -499,13 +500,13 @@ func (u *USBDiver) InitUSBDiver() error {
 }
 
 // do PoW
-func (u *USBDiver) PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes, error) {
+func (u *USBDiver) PowUSBDiver(trytes trinary.Trytes, minWeight int) (trinary.Trytes, error) {
 	// do mid-state-calculation on FPGA
 	//	var start int64 = makeTimestamp()
 
 	com := Com{Cmd: CMD_DO_POW}
 
-	var data Trytes
+	var data TrytesData
 	for i := 0; i < 891; i++ {
 		data.Data[i] = tryteMap[string(trytes[i*3:i*3+3])]
 	}
@@ -514,19 +515,19 @@ func (u *USBDiver) PowUSBDiver(trytes giota.Trytes, minWeight int) (giota.Trytes
 	var tmpBuffer bytes.Buffer
 	err := struc.Pack(&tmpBuffer, &data)
 	if err != nil {
-		return giota.Trytes(""), err
+		return trinary.Trytes(""), err
 	}
 	copy(com.Data[0:], tmpBuffer.Bytes())
 
 	com.Length = 3700                  // (891 + 33 + 1) * 4
 	_, err = u.usbRequest(&com, 10000) // 10sec enough?
 	if err != nil {
-		return giota.Trytes(""), err
+		return trinary.Trytes(""), err
 	}
 
 	var powResult PoWResult
 	if err := struc.Unpack(bytes.NewReader(com.Data[0:com.Length]), &powResult); err != nil {
-		return giota.Trytes(""), errors.New("error unpack pow results")
+		return trinary.Trytes(""), errors.New("error unpack pow results")
 	}
 
 	log.Printf("Found nonce: %08x (mask: %08x)\n", powResult.Nonce, powResult.Mask)

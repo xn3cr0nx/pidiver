@@ -4,7 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/iotaledger/giota"
+//	"github.com/iotaledger/iota.go/transaction"
+	"github.com/iotaledger/iota.go/trinary"
 )
 
 const (
@@ -264,7 +265,7 @@ func initTryteMap() {
 		for j := 0; j < 27; j++ {
 			for k := 0; k < 27; k++ {
 				key := string(TRYTE_CHARS[i:i+1] + TRYTE_CHARS[j:j+1] + TRYTE_CHARS[k:k+1])
-				xtrits := giota.Trytes(key).Trits()
+				xtrits, _ := trinary.TrytesToTrits(trinary.Trytes(key))
 				uint32Data := uint32(0)
 				tritslo := uint32(0)
 				tritshi := uint32(0)
@@ -280,13 +281,13 @@ func initTryteMap() {
 	}
 }
 
-func assembleNonce(nonce uint32, mask uint32, parallel uint32) (giota.Trytes, error) {
+func assembleNonce(nonce uint32, mask uint32, parallel uint32) (trinary.Trytes, error) {
 	if parallel == 0 || parallel > 8 {
-		return giota.Trytes(""), errors.New("wrong parallel level read")
+		return trinary.Trytes(""), errors.New("wrong parallel level read")
 	}
 
 	if mask == 0 {
-		return giota.Trytes(""), errors.New("zero-mask returned")
+		return trinary.Trytes(""), errors.New("zero-mask returned")
 	}
 
 	// log2(parallel)
@@ -346,5 +347,7 @@ func assembleNonce(nonce uint32, mask uint32, parallel uint32) (giota.Trytes, er
 		nonceTrits[i] = bitsToTrits(bitsHi[i], bitsLo[i])
 	}
 
-	return giota.Trits(nonceTrits).Trytes(), nil
+	trytes,_ := trinary.TritsToTrytes(nonceTrits)
+
+	return trytes, nil
 }
