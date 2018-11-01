@@ -11,6 +11,8 @@ import (
 	"github.com/iotaledger/iota.go/curl"
 	"github.com/shufps/pidiver/pidiver"
 	"github.com/shufps/pidiver/raspberry"
+//	"github.com/shufps/pidiver/orange_pi_pc"
+//	"github.com/shufps/pidiver/raspberry_wiringPi"
 	flag "github.com/spf13/pflag"
 )
 
@@ -19,6 +21,8 @@ const APP_VERSION = "0.1"
 // The flag package provides a default help printer via -h switch
 var configFile *string = flag.StringP("fpga.core", "f", "../pidiver1.1.rbf", "Core file to upload to FPGA")
 var device *string = flag.StringP("usb.device", "d", "/dev/ttyACM0", "Device file for usb communication")
+//var diver *string = flag.StringP("pow.type", "t", "usbdiver", "'pidiver', 'usbdiver', 'pidiver_wp")
+//var diver *string = flag.StringP("pow.type", "t", "usbdiver", "'pidiver', 'usbdiver', 'orange_pi_pc")
 var diver *string = flag.StringP("pow.type", "t", "usbdiver", "'pidiver', 'usbdiver'")
 
 func main() {
@@ -38,10 +42,20 @@ func main() {
 		usb := pidiver.USBDiver{Config: &config}
 		err = usb.InitUSBDiver()
 		powFuncs = append(powFuncs, usb.PowUSBDiver)
-	} else {
+//	} else if *diver == "orange_pi_pc" {
+//		raspi := pidiver.PiDiver{LLStruct: orange_pi_pc.GetLowLevel(), Config: &config}
+//		err = raspi.InitPiDiver()
+//		powFuncs = append(powFuncs, raspi.PowPiDiver)
+//	} else if *diver == "pidiver_wp" {
+//		raspi := pidiver.PiDiver{LLStruct: raspberry_wiringPi.GetLowLevel(), Config: &config}
+//		err = raspi.InitPiDiver()
+//		powFuncs = append(powFuncs, raspi.PowPiDiver)
+	} else if *diver == "pidiver" {
 		raspi := pidiver.PiDiver{LLStruct: raspberry.GetLowLevel(), Config: &config}
 		err = raspi.InitPiDiver()
 		powFuncs = append(powFuncs, raspi.PowPiDiver)
+	} else {
+		log.Fatalf("unknown type %s\n", *diver)
 	}
 	if err != nil {
 		log.Fatal(err)
@@ -60,7 +74,8 @@ func main() {
 					if err != nil {
 						//log.Fatalf("Error: %g", err)
 						log.Printf("[%d] crc error", id)
-						continue
+						break
+//						continue
 					}
 
 					// verify result ... copy nonce to transaction
