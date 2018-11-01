@@ -2,6 +2,7 @@ package main
 
 import (
 	//	"flag"
+	"encoding/json"
 	"log"
 	"math/rand"
 
@@ -9,30 +10,38 @@ import (
 	"github.com/iotaledger/iota.go/curl"
 	"github.com/iotaledger/iota.go/pow"
 	"github.com/iotaledger/iota.go/trinary"
+	"github.com/muxxer/powsrv/logs"
 	"github.com/shufps/pidiver/pidiver"
 	"github.com/shufps/pidiver/raspberry"
+	"github.com/shufps/pidiver/server/api"
 
 	//	"github.com/shufps/pidiver/orange_pi_pc"
 	//	"github.com/shufps/pidiver/raspberry_wiringPi"
 	flag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 const APP_VERSION = "0.1"
 
-// The flag package provides a default help printer via -h switch
-var configFile *string = flag.StringP("fpga.core", "f", "../pidiver1.1.rbf", "Core file to upload to FPGA")
-var device *string = flag.StringP("usb.device", "d", "/dev/ttyACM0", "Device file for usb communication")
+var config *viper.Viper
 
-//var diver *string = flag.StringP("pow.type", "t", "usbdiver", "'pidiver', 'usbdiver', 'pidiver_wp")
-//var diver *string = flag.StringP("pow.type", "t", "usbdiver", "'pidiver', 'usbdiver', 'orange_pi_pc")
-var diver *string = flag.StringP("pow.type", "t", "usbdiver", "'pidiver', 'usbdiver', 'powchip'")
+func init() {
+	api.Setup()
+	config = loadConfig()
+	api.SetConfig(config)
+
+	cfg, _ := json.MarshalIndent(config.AllSettings(), "", "  ")
+	api.Log.Debugf("Following settings loaded: \n %+v", string(cfg))
+}
 
 func main() {
 	flag.Parse() // Scan the arguments list
 
-	config := pidiver.PiDiverConfig{
-		Device:         *device,
-		ConfigFile:     *configFile,
+	api.Start(config)
+
+	pconfig := pidiver.PiDiverConfig{
+		Device:         config.GetString("usbdiver.device"),
+		ConfigFile:     config.GetString("usbdiver.core"),
 		ForceFlash:     false,
 		ForceConfigure: false,
 		UseCRC:         true,
@@ -40,15 +49,13 @@ func main() {
 
 	var powFuncs []pow.PowFunc
 	var err error
-	if *diver == "usbdiver" {
-		usb := pidiver.USBDiver{Config: &config}
+
+	diver := config.GetString("usbdiver.type")
+
+	if diver == "usbdiver" {
+		usb := pidiver.USBDiver{Config: &pconfig}
 		err = usb.InitUSBDiver()
 		powFuncs = append(powFuncs, usb.PowUSBDiver)
-	} else if *diver == "powchip" {
-		usb := pidiver.USBDiver{Config: &config}
-		powchip := pidiver.PoWChipDiver{USBDiver: &usb}
-		err = powchip.USBDiver.InitUSBDiver()
-		powFuncs = append(powFuncs, powchip.PowPoWChipDiver)
 		//	} else if *diver == "orange_pi_pc" {
 		//		raspi := pidiver.PiDiver{LLStruct: orange_pi_pc.GetLowLevel(), Config: &config}
 		//		err = raspi.InitPiDiver()
@@ -57,12 +64,12 @@ func main() {
 		//		raspi := pidiver.PiDiver{LLStruct: raspberry_wiringPi.GetLowLevel(), Config: &config}
 		//		err = raspi.InitPiDiver()
 		//		powFuncs = append(powFuncs, raspi.PowPiDiver)
-	} else if *diver == "pidiver" {
-		raspi := pidiver.PiDiver{LLStruct: raspberry.GetLowLevel(), Config: &config}
+	} else if diver == "pidiver" {
+		raspi := pidiver.PiDiver{LLStruct: raspberry.GetLowLevel(), Config: &pconfig}
 		err = raspi.InitPiDiver()
 		powFuncs = append(powFuncs, raspi.PowPiDiver)
 	} else {
-		log.Fatalf("unknown type %s\n", *diver)
+		log.Fatalf("unknown type %s\n", diver)
 	}
 	if err != nil {
 		log.Fatal(err)
@@ -119,4 +126,48 @@ func main() {
 	}
 	close(channel)
 
+}
+
+func loadConfig() *viper.Viper {
+	// Setup Viper
+	var config = viper.New()
+
+	// 1. Set defaults
+	config.SetDefault("test", 0)
+
+	// 2. Get command line arguments
+	flag.StringP("config", "c", "", "Config path")
+
+	flag.IntP("api.port", "p", 14265, "API Port")
+	flag.StringP("api.host", "h", "0.0.0.0", "API Host")
+	flag.String("api.auth.username", "", "API Access Username")
+	flag.String("api.auth.password", "", "API Access Password")
+	flag.Bool("api.debug", false, "Whether to log api access")
+	flag.StringSlice("api.limitRemoteAccess", nil, "Limit access to these commands from remote")
+
+	flag.Int("api.pow.maxMinWeightMagnitude", 14, "Maximum Min-Weight-Magnitude (Difficulty for PoW)")
+	flag.Int("api.pow.maxTransactions", 10000, "Maximum number of Transactions in Bundle (for PoW)")
+	flag.Bool("api.pow.usePiDiver", false, "Use FPGA (PiDiver) for PoW")
+
+	flag.StringP("usbdiver.core", "", "../pidiver1.1.rbf", "Core file to upload to FPGA")
+	flag.StringP("usbdiver.device", "", "/dev/ttyACM0", "Device file for usb communication")
+	flag.StringP("usbdiver.type", "", "usbdiver", "'pidiver', 'usbdiver'")
+
+	flag.String("log.level", "data", "DEBUG, INFO, NOTICE, WARNING, ERROR or CRITICAL")
+
+	flag.Parse()
+	config.BindPFlags(flag.CommandLine)
+
+	// 3. Load config
+	var configPath = config.GetString("config")
+	if len(configPath) > 0 {
+		logs.Log.Infof("Loading config from: %s", configPath)
+		config.SetConfigFile(configPath)
+		err := config.ReadInConfig()
+		if err != nil {
+			logs.Log.Fatalf("Config could not be loaded from: %s", configPath)
+		}
+	}
+
+	return config
 }
