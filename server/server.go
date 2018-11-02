@@ -14,16 +14,14 @@ import (
 	"github.com/shufps/pidiver/server/api"
 	"github.com/shufps/pidiver/server/config"
 	"github.com/shufps/pidiver/server/logs"
-
 	//	"github.com/shufps/pidiver/orange_pi_pc"
 	//	"github.com/shufps/pidiver/raspberry_wiringPi"
-	flag "github.com/spf13/pflag"
 )
 
 const APP_VERSION = "0.1"
 
 func main() {
-	flag.Parse() // Scan the arguments list
+	//flag.Parse() // Scan the arguments list
 
 	logs.Start()
 	config.Start()
@@ -63,6 +61,7 @@ func main() {
 	}
 
 	api.SetPowFuncs(powFuncs)
+	api.Start()
 
 	ch := make(chan os.Signal, 10)
 	signal.Notify(ch, os.Interrupt)

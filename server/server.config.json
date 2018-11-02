@@ -1,19 +1,34 @@
 {
+  "debug": false,
   "api": {
     "auth": {
       "password": null,
       "username": null
     },
-    "debug": false,
-    "host": "0.0.0.0",
+    "cors": {
+      "setAllowOriginToAll": true
+    },
+    "http" : {
+      "useHttp" : true,
+      "host": "0.0.0.0",
+      "port": 14265
+    },
+    "https" : {
+      "useHttps" : false,
+      "host": "0.0.0.0",
+      "port": 14266,
+      "certificatePath" : "cert.pem",
+      "privateKeyPath" : "key.pem"
+    },
     "limitRemoteAccess": [
       "getNeighbors",
       "addNeighbors",
       "removeNeighbors",
       "makeSnapshot",
-      "listAllAccounts"
+      "listAllAccounts",
+      "attachToTangle",
+      "interruptAttachingToTangle"
     ],
-    "port": 14265,
     "pow": {
       "maxMinWeightMagnitude": 14,
       "maxTransactions": 10000
@@ -23,8 +38,10 @@
     "level": "DEBUG"
   },
   "pidiver": {
-      "core": "../pidiver1.1.rbf",
-      "device": "/dev/ttyACM0",
-      "type": "pidiver"
+    "core": "../pidiver1.1.rbf",
+    "device": "/dev/ttyACM0",
+    "type": "pidiver"
   }
 }
+
+
