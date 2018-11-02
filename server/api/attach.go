@@ -15,8 +15,8 @@ import (
 	"github.com/iotaledger/iota.go/curl"
 	"github.com/iotaledger/iota.go/pow"
 	"github.com/iotaledger/iota.go/trinary"
-
-	"github.com/spf13/viper"
+	"github.com/shufps/pidiver/server/config"
+	"github.com/shufps/pidiver/server/logs"
 )
 
 const (
@@ -36,10 +36,17 @@ const (
 	DefaultMinWeightMagnitude = 14
 )
 
-var mutex = &sync.Mutex{}
-var maxMinWeightMagnitude = 0
-var maxTransactions = 0
-var interruptAttachToTangle = false
+var (
+	powLock                 = &sync.Mutex{}
+	maxMinWeightMagnitude   = 0
+	maxTransactions         = 0
+	useDiverDriver          = false
+	interruptAttachToTangle = false
+	powInitialized          = false
+	powType                 string
+	powVersion              string
+	serverVersion           string
+)
 
 // Int2Trits converts int64 to trits.
 func Int2Trits(v int64, size int) trinary.Trits {
@@ -68,18 +75,18 @@ func Int2Runes(v int64, size int) []rune {
 }
 
 func init() {
-	addStartModule(startAttach)
-
-	addAPICall("attachToTangle", attachToTangle)
-	addAPICall("interruptAttachingToTangle", interruptAttachingToTangle)
+	addAPICall("attachToTangle", attachToTangle, mainAPICalls)
+	addAPICall("interruptAttachingToTangle", interruptAttachingToTangle, mainAPICalls)
 }
 
-func startAttach(apiConfig *viper.Viper) {
-	maxMinWeightMagnitude = config.GetInt("api.pow.maxMinWeightMagnitude")
-	maxTransactions = config.GetInt("api.pow.maxTransactions")
+func startAttach() {
+	maxMinWeightMagnitude = config.AppConfig.GetInt("api.pow.maxMinWeightMagnitude")
+	maxTransactions = config.AppConfig.GetInt("api.pow.maxTransactions")
 
-	Log.Info("maxMinWeightMagnitude:", maxMinWeightMagnitude)
-	Log.Info("maxTransactions:", maxTransactions)
+	logs.Log.Debug("maxMinWeightMagnitude:", maxMinWeightMagnitude)
+	logs.Log.Debug("maxTransactions:", maxTransactions)
+	logs.Log.Debug("useDiverDriver:", useDiverDriver)
+
 }
 
 func IsValidPoW(hash trinary.Trits, mwm int) bool {
@@ -121,8 +128,8 @@ func getTimestamp() int64 {
 // all constants have to be divided by 3
 func attachToTangle(request Request, c *gin.Context, t time.Time) {
 	// only one attatchToTangle allowed in parallel
-	mutex.Lock()
-	defer mutex.Unlock()
+	powLock.Lock()
+	defer powLock.Unlock()
 
 	interruptAttachToTangle = false
 
@@ -130,13 +137,13 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 
 	trunkTransaction, err := toRunesCheckTrytes(request.TrunkTransaction, consts.TrunkTransactionTrinarySize/3)
 	if err != nil {
-		ReplyError("Invalid trunkTransaction-Trytes", c)
+		replyError("Invalid trunkTransaction-Trytes", c)
 		return
 	}
 
 	branchTransaction, err := toRunesCheckTrytes(request.BranchTransaction, consts.BranchTransactionTrinarySize/3)
 	if err != nil {
-		ReplyError("Invalid branchTransaction-Trytes", c)
+		replyError("Invalid branchTransaction-Trytes", c)
 		return
 	}
 
@@ -144,7 +151,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 
 	// restrict minWeightMagnitude
 	if minWeightMagnitude > maxMinWeightMagnitude {
-		ReplyError("MinWeightMagnitude too high", c)
+		replyError("MinWeightMagnitude too high", c)
 		return
 	}
 
@@ -152,7 +159,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 
 	// limit number of transactions in a bundle
 	if len(trytes) > maxTransactions {
-		ReplyError("Too many transactions", c)
+		replyError("Too many transactions", c)
 		return
 	}
 	returnTrytes = make([]string, len(trytes))
@@ -161,7 +168,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 	// validate input trytes before doing PoW
 	for idx, tryte := range trytes {
 		if runes, err := toRunesCheckTrytes(tryte, consts.TransactionTrinarySize/3); err != nil {
-			ReplyError("Error in Tryte input", c)
+			replyError("Error in Tryte input", c)
 			return
 		} else {
 			inputRunes[idx] = runes
@@ -172,7 +179,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 
 	for idx, runes := range inputRunes {
 		if interruptAttachToTangle {
-			ReplyError("attatchToTangle interrupted", c)
+			replyError("attatchToTangle interrupted", c)
 			return
 		}
 		timestamp := getTimestamp()
@@ -207,25 +214,25 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 		var powFunc pow.PowFunc
 
 		// do pow
-		Log.Info("[PoW] Using PiDiver")
+		logs.Log.Info("[PoW] Using PiDiver")
 		powFunc = powFuncs[0]
 
 		startTime := time.Now()
 		nonceTrytes, err := powFunc(trinary.Trytes(runes), minWeightMagnitude)
 		if err != nil || len(nonceTrytes) != consts.NonceTrinarySize/3 {
-			ReplyError("PoW failed!", c)
+			replyError("PoW failed!", c)
 			return
 		}
 		elapsedTime := time.Now().Sub(startTime)
-		Log.Info("[PoW] Needed", elapsedTime)
+		logs.Log.Info("[PoW] Needed", elapsedTime)
 
 		// copy nonce to runes
 		copy(runes[consts.NonceTrinaryOffset/3:], toRunes(nonceTrytes)[:consts.NonceTrinarySize/3])
 
-		Log.Debug(string(runes))
+		logs.Log.Debug(string(runes))
 		verifyTrytes, err := trinary.NewTrytes(string(runes))
 		if err != nil {
-			ReplyError("Trytes got corrupted", c)
+			replyError("Trytes got corrupted", c)
 			return
 		}
 
@@ -233,11 +240,11 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 		hash := curl.HashTrytes(verifyTrytes)
 		hashTrits, _ := trinary.TrytesToTrits(hash)
 		if !IsValidPoW(hashTrits, minWeightMagnitude) {
-			ReplyError("Nonce verify failed", c)
+			replyError("Nonce verify failed", c)
 			return
 		}
 
-		Log.Info("[PoW] Verified!")
+		logs.Log.Info("[PoW] Verified!")
 
 		returnTrytes[idx] = string(runes)
 
