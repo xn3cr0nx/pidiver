@@ -25,9 +25,7 @@
       "addNeighbors",
       "removeNeighbors",
       "makeSnapshot",
-      "listAllAccounts",
-      "attachToTangle",
-      "interruptAttachingToTangle"
+      "listAllAccounts"
     ],
     "pow": {
       "maxMinWeightMagnitude": 14,
