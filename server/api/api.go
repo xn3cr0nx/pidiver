@@ -40,9 +40,9 @@ var (
 	limitAccess  []string
 )
 
-var powFuncs []pow.PowFunc
+var powFuncs []pow.ProofOfWorkFunc
 
-func SetPowFuncs(funcs []pow.PowFunc) {
+func SetPowFuncs(funcs []pow.ProofOfWorkFunc) {
 	powFuncs = funcs
 }
 

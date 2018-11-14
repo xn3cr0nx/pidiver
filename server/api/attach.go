@@ -211,7 +211,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 		copy(runes[consts.AttachmentTimestampLowerBoundTrinaryOffset/3:], runesTimeStampLowerBoundary[:consts.AttachmentTimestampLowerBoundTrinarySize/3])
 		copy(runes[consts.AttachmentTimestampUpperBoundTrinaryOffset/3:], runesTimeStampUpperBoundary[:consts.AttachmentTimestampUpperBoundTrinarySize/3])
 
-		var powFunc pow.PowFunc
+		var powFunc pow.ProofOfWorkFunc
 
 		// do pow
 		logs.Log.Info("[PoW] Using PiDiver")

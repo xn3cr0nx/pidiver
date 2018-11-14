@@ -34,7 +34,7 @@ func main() {
 		UseCRC:         true,
 		UseSharedLock:  true}
 
-	var powFuncs []pow.PowFunc
+	var powFuncs []pow.ProofOfWorkFunc
 	var err error
 
 	diver := config.AppConfig.GetString("pidiver.type")
