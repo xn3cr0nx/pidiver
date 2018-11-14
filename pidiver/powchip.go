@@ -14,7 +14,7 @@ type PoWChipDiver struct {
 }
 
 // do PoW
-func (u *PoWChipDiver) PowPoWChipDiver(trytes trinary.Trytes, minWeight int) (trinary.Trytes, error) {
+func (u *PoWChipDiver) PowPoWChipDiver(trytes trinary.Trytes, minWeight int, parallelism ...int) (trinary.Trytes, error) {
 	// do mid-state-calculation on FPGA
 	//	var start int64 = makeTimestamp()
 

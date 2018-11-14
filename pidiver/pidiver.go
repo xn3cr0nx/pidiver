@@ -225,7 +225,7 @@ func (p *PiDiver) curlInitBlock() {
 }
 
 // do PoW
-func (p *PiDiver) PowPiDiver(trytes Trytes, minWeight int) (Trytes, error) {
+func (p *PiDiver) PowPiDiver(trytes Trytes, minWeight int, parallelism ...int) (Trytes, error) {
 	// doesn't work on ftdiver because sharing feature doesn't exist
 	if p.Config.UseSharedLock && p.VersionMajor == 1 && p.VersionMinor == 1 {
 		err := p.waitForReservation(5000 * time.Millisecond)
