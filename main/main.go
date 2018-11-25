@@ -88,7 +88,7 @@ func main() {
 					// verify result ... copy nonce to transaction
 					trytes = trytes[:consts.NonceTrinaryOffset/3] + ret[0:consts.NonceTrinarySize/3]
 					//				println(trytes)
-					hash := curl.HashTrytes(trytes)
+					hash, _ := curl.HashTrytes(trytes)
 					tritsHash, _ := trinary.TrytesToTrits(hash)
 					for i := 0; i < mwm; i++ {
 						if tritsHash[len(tritsHash)-1-i] != 0 {
