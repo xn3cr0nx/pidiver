@@ -24,7 +24,7 @@ var usb pidiver.USBDiver
 
 //export ccurl_pow
 func ccurl_pow(trytes *C.char, mwm uint) *C.char {
-    print(C.GoString(trytes))
+	//    print(C.GoString(trytes))
     var err error
 	if !initialized {
 		usb = pidiver.USBDiver{Config: &config}
