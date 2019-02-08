@@ -20,10 +20,11 @@ var config = pidiver.PiDiverConfig{
 	ForceConfigure: forceConfigure}
 
 var initialized = false
+var usb pidiver.USBDiver
 
 //export ccurl_pow
 func ccurl_pow(trytes *C.char, mwm uint) *C.char {
-    var usb pidiver.USBDiver
+    print(C.GoString(trytes))
     var err error
 	if !initialized {
 		usb = pidiver.USBDiver{Config: &config}
