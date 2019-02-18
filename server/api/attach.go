@@ -237,7 +237,7 @@ func attachToTangle(request Request, c *gin.Context, t time.Time) {
 		}
 
 		//validate PoW - throws exception if invalid
-		hash, _ := curl.HashTrytes(verifyTrytes)
+		hash := curl.HashTrytes(verifyTrytes)
 		hashTrits, _ := trinary.TrytesToTrits(hash)
 		if !IsValidPoW(hashTrits, minWeightMagnitude) {
 			replyError("Nonce verify failed", c)

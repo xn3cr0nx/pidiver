@@ -11,10 +11,10 @@ import (
 	"reflect"
 	"time"
 
-//	"github.com/iotaledger/iota.go/transaction"
+	//	"github.com/iotaledger/iota.go/transaction"
 	"github.com/iotaledger/iota.go/trinary"
 	"github.com/lunixbochs/struc"
-	"github.com/tarm/goserial"
+	serial "github.com/tarm/goserial"
 )
 
 const (

@@ -11,12 +11,14 @@
     "http" : {
       "useHttp" : true,
       "host": "0.0.0.0",
+      "node": "iri",
       "port": 14265
     },
     "https" : {
       "useHttps" : false,
       "host": "0.0.0.0",
-      "port": 14266,
+      "node": "iri",
+      "port": 14265,
       "certificatePath" : "cert.pem",
       "privateKeyPath" : "key.pem"
     },
@@ -38,7 +40,7 @@
   "pidiver": {
     "core": "../pidiver1.1.rbf",
     "device": "/dev/ttyACM0",
-    "type": "pidiver"
+    "type": "usbdiver"
   }
 }
 

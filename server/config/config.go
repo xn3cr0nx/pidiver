@@ -58,12 +58,14 @@ func declareAPIConfigs() {
 	flag.Bool("api.http.useHttp", true, "Defines if the API will serve using HTTP protocol")
 	flag.StringP("api.http.host", "h", "0.0.0.0", "HTTP API Host")
 	flag.IntP("api.http.port", "p", 14265, "HTTP API Port")
+	flag.StringP("api.http.node", "n", "https://iota1.thingslab.network", "IOTA node host")
 
 	flag.Bool("api.https.useHttps", false, "Defines if the API will serve using HTTPS protocol")
 	flag.String("api.https.host", "0.0.0.0", "HTTPS API Host")
 	flag.Int("api.https.port", 14266, "HTTPS API Port")
 	flag.String("api.https.certificatePath", "cert.pem", "Path to TLS certificate (non-encrypted)")
 	flag.String("api.https.privateKeyPath", "key.pem", "Path to private key used to isse the TLS certificate (non-encrypted)")
+	flag.String("api.https.node", "https://iota1.thingslab.network", "IOTA node host")
 
 	flag.StringSlice("api.limitRemoteAccess", nil, "Limit access to these commands from remote")
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -172,8 +173,11 @@ func createAPIEndpoint(endpointPath string, endpointImplementation map[string]AP
 			if apiCallExists {
 				implementation(request, c, ts)
 			} else {
-				logs.Log.Error("Unknown command", request.Command)
-				replyError("No known command provided", c)
+				logs.Log.Info("Redirecting", request.Command)
+				node := fmt.Sprintf("%s:%s", config.AppConfig.GetString("api.http.node"), config.AppConfig.GetString("api.http.port"))
+				// c.Redirect(http.StatusPermanentRedirect, fmt.Sprintf("http://%s:%s", config.AppConfig.GetString("api.http.node"), config.AppConfig.GetString("api.http.port")))
+				c.Redirect(http.StatusPermanentRedirect, node)
+				return
 			}
 
 		} else {
